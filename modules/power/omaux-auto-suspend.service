@@ -1,0 +1,15 @@
+[Unit]
+Description=Omarchy auto suspend after 1 hour idle
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=OMARCHY_PATH=/usr/share/omarchy
+Environment=OMARCHY_AUTO_SUSPEND_SECONDS=3600
+ExecStart=%h/.local/bin/omarchy-auto-suspend
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

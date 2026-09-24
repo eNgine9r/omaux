@@ -1,0 +1,42 @@
+#!/bin/bash
+set -u
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+POLL_SECONDS="${OMARCHY_AUTO_SUSPEND_POLL_SECONDS:-10}"
+TARGET_SECONDS="${OMARCHY_AUTO_SUSPEND_SECONDS:-3600}"
+armed=0
+
+status_json() {
+  timeout 3s omarchy-shell idle status 2>/dev/null || true
+}
+
+ready_to_suspend() {
+  local status="$1"
+  [[ -n "$status" ]] || return 1
+  jq -e --argjson target "$TARGET_SECONDS" '
+    .enabled == true and
+    .stayAwake == false and
+    .screensaver >= $target and
+    .idle == true and
+    .inIdleCycle == true
+  ' <<<"$status" >/dev/null 2>&1
+}
+
+if [[ ${1:-} == --check ]]; then
+  status_json
+  exit 0
+fi
+
+while true; do
+  status="$(status_json)"
+  if ready_to_suspend "$status"; then
+    if (( armed == 0 )); then
+      armed=1
+      logger -t omarchy-auto-suspend "Idle threshold ${TARGET_SECONDS}s reached; suspending"
+      systemctl suspend || logger -t omarchy-auto-suspend "Suspend request failed"
+      sleep 15
+    fi
+  else
+    armed=0
+  fi
+  sleep "$POLL_SECONDS"
+done

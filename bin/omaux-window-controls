@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export HOME="${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+DATA_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/omaux/window-controls"
+LIB_DIR="$DATA_ROOT/lib"
+LOCK="$DATA_ROOT/setup.lock"
+REPO_URL="https://github.com/hyprwm/hyprland-plugins.git"
+
+mkdir -p "$DATA_ROOT" "$LIB_DIR"
+exec 9>"$LOCK"
+flock -w 90 9
+
+hypr_version=$(pkg-config --modversion hyprland 2>/dev/null || true)
+[[ -n "$hypr_version" ]] || exit 0
+series=$(awk -F. '{print $1 "." $2 ".0"}' <<<"$hypr_version")
+tag="v$series"
+plugin="$LIB_DIR/hyprbars-$hypr_version.so"
+
+build_plugin() {
+  local stage="$DATA_ROOT/.build-${hypr_version}-$$"
+  rm -rf "$stage"
+  git clone --quiet --depth=1 --branch "$tag" "$REPO_URL" "$stage"
+  make -C "$stage/hyprbars" -j2 >/dev/null
+  install -Dm755 "$stage/hyprbars/hyprbars.so" "$plugin"
+  rm -rf "$stage"
+}
+
+[[ -s "$plugin" ]] || build_plugin
+
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  sig=$(ls -1dt "$XDG_RUNTIME_DIR"/hypr/* 2>/dev/null | head -n1 | xargs -r basename)
+  [[ -n "$sig" ]] && export HYPRLAND_INSTANCE_SIGNATURE="$sig"
+fi
+
+hyprctl version >/dev/null 2>&1 || exit 0
+
+if hyprctl plugin list 2>/dev/null | grep -q 'hyprbars'; then
+  hyprctl reload >/dev/null
+else
+  hyprctl plugin load "$plugin" >/dev/null
+  sleep 0.25
+  hyprctl reload >/dev/null
+fi
+
+sleep 0.15
+hyprctl plugin list 2>/dev/null | grep -q 'hyprbars' || {
+  echo "hyprbars failed to load" >&2
+  exit 1
+}

@@ -4,7 +4,7 @@ OmaUX is a modular desktop UX enhancement pack for Omarchy. It brings a polished
 
 > Current status: **0.1.0-alpha.1** — actively developed. The project is intentionally modular so new UX modules can be added without redesigning the core.
 
-![OmaUX preview](assets/preview.png)
+![OmaUX preview](assets/hero.svg)
 
 ## Highlights
 
@@ -36,7 +36,7 @@ Clone the repository and run the installer explicitly:
 ```bash
 git clone https://github.com/eNgine9r/omaux.git
 cd omaux
-./install.sh
+./install.sh --full
 ```
 
 The full profile enables the optional integrations such as traffic lights, the companion pin-enabled Omarchy menu, window-layout helpers and other desktop-level changes. Backups are created before persistent user configuration is changed.

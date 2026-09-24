@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omaux"
+STATE="$STATE_DIR/minimized.json"
+mkdir -p "$STATE_DIR"
+[[ -f "$STATE" ]] || printf '%s\n' '{"version":1,"windows":{}}' >"$STATE"
+
+normalize() { printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | sed -E 's/\.desktop$//; s/[^a-z0-9]+//g'; }
+clients() { hyprctl clients -j 2>/dev/null || printf '[]'; }
+active() { hyprctl activewindow -j 2>/dev/null || printf '{}'; }
+
+atomic_state() {
+  local tmp
+  tmp=$(mktemp "$STATE_DIR/.minimized.XXXXXX")
+  cat >"$tmp"
+  mv "$tmp" "$STATE"
+}
+
+prune() {
+  local live next
+  live=$(clients | jq -c '[.[].address]')
+  next=$(jq -c --argjson live "$live" '.windows |= with_entries(select(.key as $k | $live | index($k)))' "$STATE")
+  printf '%s\n' "$next" | atomic_state
+}
+
+client_key_json() {
+  local json="$1" cls
+  cls=$(jq -r '.class // .initialClass // ""' <<<"$json")
+  normalize "$cls"
+}
+
+move_window() {
+  local addr="$1" workspace="$2"
+  hyprctl dispatch "hl.dsp.window.move({ workspace = [[$workspace]], follow = false, address = [[$addr]] })" >/dev/null
+}
+
+focus_window() {
+  local addr="$1"
+  hyprctl dispatch "hl.dsp.focus({ window = [[address:$addr]] })" >/dev/null 2>&1 || true
+}
+
+minimize_address() {
+  local addr="$1" c ws key title next actual
+  c=$(clients | jq -c --arg a "$addr" 'first(.[] | select(.address == $a)) // empty')
+  [[ -n "$c" ]] || return 1
+  ws=$(jq -r '.workspace.name // ""' <<<"$c")
+  [[ -n "$ws" && "$ws" != "special:minimized" ]] || return 0
+  key=$(client_key_json "$c")
+  title=$(jq -r '.title // ""' <<<"$c")
+  move_window "$addr" "special:minimized"
+  sleep 0.08
+  actual=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
+  [[ "$actual" == "special:minimized" ]] || return 1
+  next=$(jq -c --arg a "$addr" --arg ws "$ws" --arg key "$key" --arg title "$title" '.windows[$a] = {workspace:$ws, appKey:$key, title:$title}' "$STATE")
+  printf '%s\n' "$next" | atomic_state
+}
+
+restore_address() {
+  local addr="$1" ws next actual
+  ws=$(jq -r --arg a "$addr" '.windows[$a].workspace // empty' "$STATE")
+  [[ -n "$ws" ]] || ws=$(hyprctl activeworkspace -j | jq -r '.name // "1"')
+  move_window "$addr" "$ws"
+  sleep 0.08
+  actual=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
+  if [[ "$actual" == "special:minimized" ]]; then
+    focus_window "$addr"
+    sleep 0.06
+    hyprctl dispatch "hl.dsp.window.move({ workspace = [[$ws]], follow = true })" >/dev/null
+  fi
+  focus_window "$addr"
+  next=$(jq -c --arg a "$addr" 'del(.windows[$a])' "$STATE")
+  printf '%s\n' "$next" | atomic_state
+}
+
+case "${1:-}" in
+  minimize-active) prune; addr=$(active | jq -r '.address // empty'); [[ -n "$addr" ]] && minimize_address "$addr" ;;
+  restore) prune; restore_address "${2:?address required}" ;;
+  prune) prune ;;
+  state) prune; cat "$STATE" ;;
+  *) echo "Usage: omaux-dock-window <minimize-active|restore|prune|state>" >&2; exit 2 ;;
+esac

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PINS="${XDG_CONFIG_HOME:-$HOME/.config}/omaux/pins.json"
+mkdir -p "$(dirname "$PINS")"
+
+canonical() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/\.desktop$//; s/[^a-z0-9]+//g'
+}
+
+ensure_state() {
+  if ! jq -e '.version == 1 and (.pins | type == "array")' "$PINS" >/dev/null 2>&1; then
+    printf '%s\n' '{"version":1,"pins":[]}' >"$PINS"
+  fi
+}
+
+atomic_write() {
+  local data="$1" tmp
+  tmp=$(mktemp "${PINS}.tmp.XXXXXX")
+  printf '%s\n' "$data" >"$tmp"
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$PINS"
+}
+
+pin_app() {
+  local desktop="$1" name="${2:-$1}" icon="${3:-}" key next
+  key=$(canonical "$desktop")
+  [[ -n "$key" ]] || exit 2
+  ensure_state
+  if jq -e --arg key "$key" 'any(.pins[]; .key == $key)' "$PINS" >/dev/null; then
+    exit 0
+  fi
+  next=$(jq -c --arg key "$key" --arg desktop "$desktop" --arg name "$name" --arg icon "$icon" '.pins += [{key:$key,desktop:$desktop,name:$name,icon:$icon}]' "$PINS")
+  atomic_write "$next"
+}
+
+unpin_app() {
+  local desktop="$1" name="${2:-$1}" key next
+  key=$(canonical "$desktop")
+  ensure_state
+  next=$(jq -c --arg key "$key" '.pins |= map(select(.key != $key))' "$PINS")
+  atomic_write "$next"
+}
+
+case "${1:-}" in
+  toggle)
+    desktop="${2:-}"; name="${3:-$desktop}"; icon="${4:-}"
+    [[ -n "$desktop" ]] || exit 2
+    ensure_state
+    key=$(canonical "$desktop")
+    if jq -e --arg key "$key" 'any(.pins[]; .key == $key)' "$PINS" >/dev/null; then
+      unpin_app "$desktop" "$name"
+    else
+      pin_app "$desktop" "$name" "$icon"
+    fi
+    ;;
+  pin) pin_app "${2:?desktop id required}" "${3:-$2}" "${4:-}" ;;
+  unpin) unpin_app "${2:?desktop id required}" "${3:-$2}" ;;
+  is-pinned)
+    ensure_state; key=$(canonical "${2:?desktop id required}")
+    jq -e --arg key "$key" 'any(.pins[]; .key == $key)' "$PINS" >/dev/null
+    ;;
+  list) ensure_state; cat "$PINS" ;;
+  *) echo "Usage: omaux-dock-pin <toggle|pin|unpin|is-pinned|list> ..." >&2; exit 2 ;;
+esac

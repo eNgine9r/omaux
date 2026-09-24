@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import json, subprocess, sys, time
+from pathlib import Path
+ACTION = sys.argv[1] if len(sys.argv) > 1 else "restore"
+HYPR = ["/usr/bin/hyprctl"]
+STATE = Path.home() / ".local/state/omaux/window-layout.json"
+OUTER = 8
+INNER = 6
+
+def hjson(command: str):
+    p = subprocess.run(HYPR + ["-j", command], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if p.returncode: return None
+    try: return json.loads(p.stdout)
+    except Exception: return None
+
+def batch(expressions: list[str]) -> bool:
+    if not expressions: return True
+    arg = "; ".join("dispatch " + expr for expr in expressions)
+    return subprocess.run(HYPR + ["--batch", arg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+def load_state() -> dict:
+    try: return json.loads(STATE.read_text())
+    except Exception: return {}
+
+def save_state(data: dict) -> None:
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, separators=(",", ":")))
+    tmp.replace(STATE)
+
+def selector(addr: str) -> str: return f"address:{addr}"
+def active_window():
+    w = hjson("activewindow")
+    return w if isinstance(w, dict) and w.get("address") else None
+
+def geometry(win: dict) -> dict:
+    at=list(win.get("at") or [0,0]); size=list(win.get("size") or [0,0])
+    return {"x":int(at[0]),"y":int(at[1]),"w":int(size[0]),"h":int(size[1]),"floating":bool(win.get("floating")),"fullscreen":int(win.get("fullscreen") or 0)}
+
+def main():
+    win=active_window()
+    if not win: return
+    addr=win["address"]
+    states=load_state()
+    sel=selector(addr)
+    if ACTION=="maximize":
+        entry=states.get(addr) or {}
+        if int(win.get("fullscreen") or 0)==1:
+            pre=entry.pop("preMax",None)
+            expr=[f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "unset" }})']
+            if pre and not pre.get("floating"):
+                expr.append(f'hl.dsp.window.float({{ window = "{sel}", action = "disable" }})')
+            batch(expr); states.pop(addr,None); save_state(states)
+        else:
+            entry["preMax"]=geometry(win); states[addr]=entry; save_state(states)
+            batch([f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "set" }})'])
+        return
+    raise SystemExit(f"unsupported action: {ACTION}")
+
+if __name__=="__main__": main()
