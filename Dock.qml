@@ -144,17 +144,12 @@ Item {
   function activatePreviewWindow(top) {
     if (!top) return
     var address = addressForToplevel(top)
-    var hidden = false
-    var handle = hyprHandleForToplevel(top)
-    try {
-      hidden = handle && handle.workspace && String(handle.workspace.name || "") === "special:minimized"
-    } catch (e) { }
-
-    if (address && (root.minimizedWindows[address] !== undefined || hidden)) {
-      Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "restore", address])
+    if (address) {
+      // Resolve the real workspace at click time in the helper. QML state can
+      // lag when several windows of the same app are minimized/restored fast.
+      Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "activate", address])
       return
     }
-
     try { top.activate() }
     catch (e) { }
   }
