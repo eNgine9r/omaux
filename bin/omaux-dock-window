@@ -62,7 +62,17 @@ move_window() {
 }
 
 focus_window() {
-  local addr="$1"
+  local addr="$1" meta floating fullscreen
+  meta=$(clients | jq -c --arg a "$addr" 'first(.[] | select(.address == $a)) // {}')
+  floating=$(jq -r '.floating // false' <<<"$meta")
+  fullscreen=$(jq -r '.fullscreen // 0' <<<"$meta")
+
+  # OmaUX is a freeform desktop. A tiled client can never visually rise above
+  # existing floating windows, so promote normal clients before focusing them.
+  if [[ "$floating" != "true" && "$fullscreen" == "0" ]]; then
+    hyprctl dispatch "hl.dsp.window.float({ window = \"address:$addr\", action = \"enable\" })" >/dev/null 2>&1 || true
+    sleep 0.04
+  fi
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null 2>&1 || true
 }
 

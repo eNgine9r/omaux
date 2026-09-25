@@ -3,7 +3,7 @@ set -euo pipefail
 python - "$HOME/.config/hypr/looknfeel.lua" "$HOME/.config/hypr/autostart.lua" <<'PY'
 from pathlib import Path
 import re,sys
-for name,tag in [(sys.argv[1],'hyprbars'),(sys.argv[2],'window-controls')]:
+for name,tag in [(sys.argv[1],'hyprbars'),(sys.argv[1],'windowing'),(sys.argv[2],'window-controls')]:
  p=Path(name)
  if not p.exists(): continue
  s=p.read_text()
