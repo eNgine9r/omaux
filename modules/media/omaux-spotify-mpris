@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ACTION="${1:-status}"
+ARG="${2:-}"
+have_playerctl() { command -v playerctl >/dev/null 2>&1; }
+find_player() { playerctl -l 2>/dev/null | awk 'BEGIN{IGNORECASE=1} /(^|\.)spotify($|\.)/{print; exit}'; }
+json_false() { printf '{"available":false,"reason":"%s"}\n' "$1"; }
+if ! have_playerctl; then json_false playerctl_missing; exit 0; fi
+PLAYER="${OMAUX_SPOTIFY_PLAYER:-$(find_player)}"
+if [[ -z "$PLAYER" ]]; then json_false spotify_inactive; exit 0; fi
+FMT='{"available":true,"status":{{status | json}},"title":{{title | json}},"artist":{{artist | json}},"album":{{album | json}},"artUrl":{{mpris:artUrl | json}},"length":{{mpris:length}},"position":{{position}},"volume":{{volume}}}'
+case "$ACTION" in
+ previous|next|play-pause|play|pause) playerctl --player="$PLAYER" "$ACTION" 2>/dev/null || true ;;
+ position) [[ "$ARG" =~ ^[0-9]+([.][0-9]+)?$ ]] && playerctl --player="$PLAYER" position "$ARG" 2>/dev/null || true ;;
+ volume) [[ "$ARG" =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]] && playerctl --player="$PLAYER" volume "$ARG" 2>/dev/null || true ;;
+ status) playerctl --player="$PLAYER" metadata --format "$FMT" 2>/dev/null || json_false spotify_inactive ;;
+ follow) exec playerctl --player="$PLAYER" --follow metadata --format "$FMT" ;;
+ *) echo "usage: $0 {status|follow|previous|play-pause|next|play|pause|position SECONDS|volume 0..1}" >&2; exit 2 ;;
+esac
