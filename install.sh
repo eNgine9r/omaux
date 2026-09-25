@@ -6,6 +6,8 @@ STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omaux"
 BACKUP="$STATE/backups/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$STATE" "$BACKUP" "${XDG_CONFIG_HOME:-$HOME/.config}/omaux" "$HOME/.local/bin"
 for n in omaux-dock-window omaux-dock-pin omaux-window-layout; do install -Dm755 "$ROOT/bin/$n" "$HOME/.local/bin/$n"; done
+# Media helper is user-local and harmless when Spotify/playerctl are absent.
+install -Dm755 "$ROOT/modules/media/omaux-spotify-mpris" "$HOME/.local/bin/omaux-spotify-mpris"
 [[ -s "$HOME/.config/omaux/pins.json" ]] || printf '%s\n' '{"version":1,"pins":[]}' > "$HOME/.config/omaux/pins.json"
 if [[ "$MODE" == "--full" ]]; then
   install -Dm755 "$ROOT/bin/omaux-window-controls" "$HOME/.local/bin/omaux-window-controls"
