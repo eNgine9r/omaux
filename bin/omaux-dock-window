@@ -26,8 +26,21 @@ atomic_state() {
 
 prune() {
   local live next
-  live=$(clients | jq -c '[.[].address]')
-  next=$(jq -c --argjson live "$live" '.windows |= with_entries(select(.key as $k | $live | index($k)))' "$STATE")
+  live=$(clients | jq -c 'map({key:.address,value:{workspace:(.workspace.name // ""),stableId:(.stableId // ""),pid:(.pid // 0),initialTitle:(.initialTitle // "")}}) | from_entries')
+  next=$(jq -c --argjson live "$live" '
+    .windows |= with_entries(
+      .key as $k | .value as $saved | ($live[$k] // null) as $now |
+      select($now != null and $now.workspace == "special:minimized") |
+      select(
+        if ($saved.stableId // "") != "" then
+          $saved.stableId == $now.stableId
+        else
+          (($saved.pid // 0) == 0 or ($saved.pid == $now.pid)) and
+          (($saved.initialTitle // "") == "" or ($saved.initialTitle == $now.initialTitle))
+        end
+      )
+    )
+  ' "$STATE")
   printf '%s\n' "$next" | atomic_state
 }
 
@@ -51,51 +64,71 @@ focus_window() {
 }
 
 minimize_address() {
-  local addr="$1" c ws key title next actual
+  local addr="$1" c ws key title stable_id pid initial_title next actual
   c=$(clients | jq -c --arg a "$addr" 'first(.[] | select(.address == $a)) // empty')
   [[ -n "$c" ]] || return 1
   ws=$(jq -r '.workspace.name // ""' <<<"$c")
   [[ -n "$ws" && "$ws" != "special:minimized" ]] || return 0
   key=$(client_key_json "$c")
   title=$(jq -r '.title // ""' <<<"$c")
+  stable_id=$(jq -r '.stableId // ""' <<<"$c")
+  pid=$(jq -r '.pid // 0' <<<"$c")
+  initial_title=$(jq -r '.initialTitle // ""' <<<"$c")
   move_window "$addr" "special:minimized"
   sleep 0.08
   actual=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
   [[ "$actual" == "special:minimized" ]] || return 1
   next=$(jq -c --arg a "$addr" --arg ws "$ws" --arg key "$key" --arg title "$title" \
-    '.windows[$a] = {workspace:$ws, appKey:$key, title:$title}' "$STATE")
+    --arg stableId "$stable_id" --argjson pid "$pid" --arg initialTitle "$initial_title" \
+    '.windows[$a] = {workspace:$ws, appKey:$key, title:$title, stableId:$stableId, pid:$pid, initialTitle:$initialTitle}' "$STATE")
   printf '%s\n' "$next" | atomic_state
 }
 
 restore_address() {
-  local addr="$1" ws next exists
+  local addr="$1" ws next exists current actual
   exists=$(clients | jq -r --arg a "$addr" 'any(.[]; .address == $a)')
   if [[ "$exists" != true ]]; then
     next=$(jq -c --arg a "$addr" 'del(.windows[$a])' "$STATE")
     printf '%s\n' "$next" | atomic_state
     return 1
   fi
+
+  current=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
+  if [[ "$current" != "special:minimized" ]]; then
+    next=$(jq -c --arg a "$addr" 'del(.windows[$a])' "$STATE")
+    printf '%s\n' "$next" | atomic_state
+    focus_window "$addr"
+    return 0
+  fi
+
   ws=$(jq -r --arg a "$addr" '.windows[$a].workspace // empty' "$STATE")
   [[ -n "$ws" ]] || ws=$(hyprctl activeworkspace -j | jq -r '.name // "1"')
   [[ "$ws" != special:* ]] || ws=$(hyprctl activeworkspace -j | jq -r '.name // "1"')
+
   move_window "$addr" "$ws"
   sleep 0.08
-
-  # Hyprland currently acknowledges an addressed move out of a hidden special
-  # workspace without actually moving the client. Fall back to focusing that
-  # client first, then moving the active window with follow=true.
   actual=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
   if [[ "$actual" == "special:minimized" ]]; then
-    focus_window "$addr"
-    sleep 0.06
-    hyprctl dispatch "hl.dsp.window.move({ workspace = [[$ws]], follow = true })" >/dev/null
+    move_window "$addr" "$ws"
     sleep 0.08
     actual=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
   fi
   [[ "$actual" != "special:minimized" && -n "$actual" ]] || return 1
+
   focus_window "$addr"
   next=$(jq -c --arg a "$addr" 'del(.windows[$a])' "$STATE")
   printf '%s\n' "$next" | atomic_state
+}
+
+activate_address() {
+  local addr="$1" current
+  current=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
+  [[ -n "$current" ]] || return 1
+  if [[ "$current" == "special:minimized" ]]; then
+    restore_address "$addr"
+  else
+    focus_window "$addr"
+  fi
 }
 
 find_visible_for_key() {
@@ -158,6 +191,10 @@ case "${1:-}" in
     prune
     restore_address "${2:?address required}"
     ;;
+  activate)
+    prune
+    activate_address "${2:?address required}"
+    ;;
   restore-app)
     prune
     addr=$(find_minimized_for_key "${2:?app key required}" || true)
@@ -177,7 +214,7 @@ case "${1:-}" in
     cat "$STATE"
     ;;
   *)
-    echo "Usage: omaux-window {minimize-active|restore <address>|restore-app <key>|click <key> [desktop]|launch <desktop>|prune|state}" >&2
+    echo "Usage: omaux-dock-window {minimize-active|restore <address>|activate <address>|restore-app <key>|click <key> [desktop]|launch <desktop>|prune|state}" >&2
     exit 2
     ;;
 esac
