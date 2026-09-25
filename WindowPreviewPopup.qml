@@ -3,7 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 
-PopupWindow {
+PanelWindow {
   id: root
 
   property var dockRoot: null
@@ -27,28 +27,38 @@ PopupWindow {
   property url pendingIconSource: ""
   property real pendingCenterX: 0
 
-  readonly property int previewColumns: previewWindows.length <= 1 || width < 640 ? 1 : 2
+  readonly property real availableWidth: root.hostWindow ? root.hostWindow.width : root.width
+  readonly property int previewColumns: {
+    var count = root.previewWindows.length
+    if (count <= 1) return 1
+    if (count === 3 && root.availableWidth >= 900) return 3
+    return 2
+  }
   readonly property int previewRows: Math.max(1, Math.ceil(previewWindows.length / previewColumns))
-  readonly property int previewCellWidth: previewColumns === 1 ? 320 : 286
-  readonly property int previewCellHeight: 198
+  readonly property int previewCellWidth: previewColumns === 1
+                                            ? Math.min(340, Math.max(240, availableWidth - 36))
+                                            : (previewColumns === 3 ? 250 : 286)
+  readonly property int previewCellHeight: previewColumns === 3 ? 190 : 198
   readonly property int previewGap: 8
   readonly property int outerWidth: previewColumns * previewCellWidth + (previewColumns - 1) * previewGap + 20
   readonly property int extraWindowHeight: totalWindowCount > 4 ? 24 : 0
   readonly property int outerHeight: 46 + previewRows * previewCellHeight + (previewRows - 1) * previewGap + 16 + extraWindowHeight
 
-  anchor {
-    window: root.hostWindow
-    adjustment: PopupAdjustment.None
-    gravity: Edges.Top | Edges.Right
-    edges: Edges.Top | Edges.Left
-  }
-
+  screen: root.hostWindow ? root.hostWindow.screen : null
   visible: root.mounted
   color: "transparent"
-  width: root.hostWindow ? root.hostWindow.width : 1
-  height: Math.max(1, root.outerHeight + 10)
-  grabFocus: false
+  implicitHeight: Math.max(1, root.outerHeight + 70)
+  exclusionMode: ExclusionMode.Ignore
   surfaceFormat.opaque: false
+  WlrLayershell.namespace: "omaux-dock-preview"
+  WlrLayershell.layer: WlrLayer.Overlay
+  WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+  anchors {
+    bottom: true
+    left: true
+    right: true
+  }
 
   mask: Region { item: previewHitArea }
 
@@ -215,7 +225,7 @@ PopupWindow {
     width: Math.min(root.outerWidth, Math.max(1, root.width - 16))
     height: root.outerHeight
     x: Math.max(8, Math.min(root.width - width - 8, root.anchorCenterX - width / 2))
-    y: Math.max(0, root.height - height - 5)
+    y: Math.max(4, root.height - height - 64)
     opacity: root.shown ? 1 : 0
     scale: root.shown ? 1.0 : 0.965
     transformOrigin: Item.Bottom
@@ -231,7 +241,7 @@ PopupWindow {
       anchors.fill: parent
       anchors.margins: -4
       radius: 22
-      color: Util.alpha(Color.background, 0.28)
+      color: Util.alpha(Color.background, 0.32)
       z: -2
     }
 
@@ -239,9 +249,9 @@ PopupWindow {
       id: previewSurface
       anchors.fill: parent
       radius: 18
-      color: Util.alpha(Color.background, 0.94)
+      color: Util.alpha(Color.background, 0.965)
       border.width: 1
-      border.color: Util.alpha(Color.foreground, 0.16)
+      border.color: Util.alpha(Color.foreground, 0.17)
       clip: true
 
       Column {
