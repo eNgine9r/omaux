@@ -29,6 +29,10 @@ assert "JsonAdapter" in widget and "xRatio" in widget
 assert "xAxis.minimum: 8" in widget and "xAxis.maximum:" in widget
 assert "root.savePosition(panel, card)" in widget
 
+# Dynamic transport glyphs must repaint when play/pause state changes.
+assert "property string iconKind: button.kind" in widget
+assert "onIconKindChanged: requestPaint()" in widget
+
 # Composition is isolated from Dock.qml for easy rollback.
 assert "Dock {" in entry
 assert "SpotifyMiniWidget {" in entry
