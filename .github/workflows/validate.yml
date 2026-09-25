@@ -10,10 +10,12 @@ jobs:
       - name: Shell syntax
         run: bash -n install.sh uninstall.sh bin/omaux-dock-window bin/omaux-dock-pin bin/omaux-window-controls
       - name: Python syntax
-        run: python -m py_compile bin/omaux-window-layout modules/localization/generate-ukrainian-menu.py modules/menu/apply-pinned-menu-clone.py tests/test_pinned_hyprbars_source.py tests/test_multiwindow_restore.py
+        run: python -m py_compile bin/omaux-window-layout modules/localization/generate-ukrainian-menu.py modules/menu/apply-pinned-menu-clone.py tests/test_pinned_hyprbars_source.py tests/test_multiwindow_restore.py tests/test_window_layout_state.py
       - name: Menu clone safety
         run: python tests/test_menu_clone_safety.py
       - name: Pinned remote source safety
         run: python tests/test_pinned_hyprbars_source.py
       - name: Multi-window dock restore safety
         run: python tests/test_multiwindow_restore.py
+      - name: Window layout stable-state safety
+        run: python tests/test_window_layout_state.py

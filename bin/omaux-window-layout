@@ -54,6 +54,13 @@ def save_state(data: dict) -> None:
 def selector(addr: str) -> str:
     return f"address:{addr}"
 
+def state_key(win: dict) -> str:
+    return str(win.get("stableId") or win.get("address") or "")
+
+def reconcile_state(data: dict, clients: list[dict]) -> dict:
+    live = {state_key(w) for w in clients if state_key(w)}
+    return {key: value for key, value in data.items() if key in live}
+
 def active_window():
     w = hjson("activewindow")
     return w if isinstance(w, dict) and w.get("address") else None
@@ -135,6 +142,7 @@ def main():
         return
 
     addr = win["address"]
+    key = state_key(win)
     area = workarea_for(win)
     if not area:
         return
@@ -152,12 +160,15 @@ def main():
         "bottom-right": (x0 + half_w + INNER, y0 + half_h + INNER, half_w, half_h),
     }
 
-    states = load_state()
+    loaded_states = load_state()
+    states = reconcile_state(loaded_states, hjson("clients") or [])
+    if states != loaded_states:
+        save_state(states)
 
     if ACTION in targets:
         win = refresh_after_unmaximize(win)
         current = geometry(win)
-        old = states.get(addr)
+        old = states.get(key)
         if not old or not close_enough(current, old.get("lastSnap")):
             old = {"original": current}
 
@@ -167,13 +178,13 @@ def main():
                 "x": x, "y": y, "w": w, "h": h,
                 "floating": True, "fullscreen": 0,
             }
-            states[addr] = old
+            states[key] = old
             save_state(states)
         return
 
     if ACTION == "maximize":
         sel = selector(addr)
-        entry = states.get(addr) or {}
+        entry = states.get(key) or {}
         if int(win.get("fullscreen") or 0) == 1:
             exprs = unset_fullscreen_exprs(addr)
             premax = entry.pop("preMax", None)
@@ -190,13 +201,13 @@ def main():
                     ]
             batch(exprs)
             if entry:
-                states[addr] = entry
+                states[key] = entry
             else:
-                states.pop(addr, None)
+                states.pop(key, None)
             save_state(states)
         else:
             entry["preMax"] = geometry(win)
-            states[addr] = entry
+            states[key] = entry
             save_state(states)
             batch([
                 f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "set" }})'
@@ -206,7 +217,7 @@ def main():
     if ACTION == "restore":
         sel = selector(addr)
         if int(win.get("fullscreen") or 0) != 0:
-            entry = states.get(addr) or {}
+            entry = states.get(key) or {}
             exprs = unset_fullscreen_exprs(addr)
             premax = entry.pop("preMax", None)
             if premax:
@@ -222,13 +233,13 @@ def main():
                     ]
             batch(exprs)
             if entry:
-                states[addr] = entry
+                states[key] = entry
             else:
-                states.pop(addr, None)
+                states.pop(key, None)
             save_state(states)
             return
 
-        old = states.get(addr)
+        old = states.get(key)
         current = geometry(win)
         if old and close_enough(current, old.get("lastSnap")):
             original = old.get("original") or {}
@@ -244,7 +255,7 @@ def main():
                     f'hl.dsp.window.float({{ window = "{sel}", action = "disable" }})'
                 ]
             batch(exprs)
-        states.pop(addr, None)
+        states.pop(key, None)
         save_state(states)
         return
 
