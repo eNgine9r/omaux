@@ -132,21 +132,41 @@ activate_address() {
 }
 
 find_visible_for_key() {
-  local wanted="$1" c key ws
+  local wanted="$1" c key ws hist addr best="" best_hist=999999
   while IFS= read -r c; do
     key=$(client_key_json "$c")
     ws=$(jq -r '.workspace.name // ""' <<<"$c")
     if [[ "$key" == "$wanted" && "$ws" != "special:minimized" ]]; then
-      jq -r '.address' <<<"$c"
-      return 0
+      hist=$(jq -r '.focusHistoryID // 999999' <<<"$c")
+      addr=$(jq -r '.address // empty' <<<"$c")
+      if [[ -n "$addr" && "$hist" =~ ^[0-9]+$ && "$hist" -lt "$best_hist" ]]; then
+        best="$addr"
+        best_hist="$hist"
+      fi
     fi
   done < <(clients | jq -c '.[]')
-  return 1
+  [[ -n "$best" ]] || return 1
+  printf '%s
+' "$best"
 }
 
 find_minimized_for_key() {
-  local wanted="$1"
-  jq -r --arg k "$wanted" '.windows | to_entries[] | select(.value.appKey == $k) | .key' "$STATE" | head -n1
+  local wanted="$1" c key ws hist addr best="" best_hist=999999
+  while IFS= read -r c; do
+    key=$(client_key_json "$c")
+    ws=$(jq -r '.workspace.name // ""' <<<"$c")
+    if [[ "$key" == "$wanted" && "$ws" == "special:minimized" ]]; then
+      hist=$(jq -r '.focusHistoryID // 999999' <<<"$c")
+      addr=$(jq -r '.address // empty' <<<"$c")
+      if [[ -n "$addr" && "$hist" =~ ^[0-9]+$ && "$hist" -lt "$best_hist" ]]; then
+        best="$addr"
+        best_hist="$hist"
+      fi
+    fi
+  done < <(clients | jq -c '.[]')
+  [[ -n "$best" ]] || return 1
+  printf '%s
+' "$best"
 }
 
 launch_desktop() {
@@ -159,25 +179,26 @@ launch_desktop() {
 }
 
 click_app() {
-  local wanted="$1" desktop="${2:-}" a akey aws visible minimized
+  local wanted="$1" desktop="${2:-}" visible minimized
   prune
-  a=$(active)
-  akey=$(client_key_json "$a")
-  aws=$(jq -r '.workspace.name // ""' <<<"$a")
-  if [[ -n "$akey" && "$akey" == "$wanted" && "$aws" != "special:minimized" ]]; then
-    minimize_address "$(jq -r '.address' <<<"$a")"
-    return
-  fi
+
+  # macOS-style Dock semantics: clicking a running app activates it; it never
+  # toggles minimize. Minimize is an explicit window action (yellow button or
+  # shortcut), while exact window selection lives in the hover previews.
   visible=$(find_visible_for_key "$wanted" || true)
   if [[ -n "$visible" ]]; then
     focus_window "$visible"
     return
   fi
+
+  # If every window of the app is minimized, restore one so an app-icon click
+  # still behaves like app activation rather than silently doing nothing.
   minimized=$(find_minimized_for_key "$wanted" || true)
   if [[ -n "$minimized" ]]; then
     restore_address "$minimized"
     return
   fi
+
   launch_desktop "$desktop"
 }
 

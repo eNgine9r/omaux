@@ -19,4 +19,13 @@ assert 'address = [[$addr]]' not in helper
 assert 'window = [[address:$addr]]' not in helper
 assert '"activate", address' in dock
 assert 'root.minimizedWindows[address] !== undefined' not in dock
+
+click_block = helper.split('click_app() {', 1)[1].split('\n}\n\ncase ', 1)[0]
+assert 'minimize_address' not in click_block
+assert 'visible=$(find_visible_for_key "$wanted" || true)' in click_block
+assert 'focus_window "$visible"' in click_block
+assert 'restore_address "$minimized"' in click_block
+assert 'focusHistoryID // 999999' in helper
+assert '[[ "$key" == "$wanted" && "$ws" == "special:minimized" ]]' in helper
+
 print('multi-window dock restore tests: PASS')
