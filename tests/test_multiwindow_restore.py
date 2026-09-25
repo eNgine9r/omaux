@@ -17,7 +17,9 @@ assert 'follow = false, window =' in helper
 assert 'address:$addr' in helper
 assert 'address = [[$addr]]' not in helper
 assert 'window = [[address:$addr]]' not in helper
-assert '"activate", address' in dock
+assert '"activate-match", String(address || ""), key, title' in dock
+assert 'activate_match() {' in helper
+assert 'activate-match)' in helper
 assert 'root.minimizedWindows[address] !== undefined' not in dock
 
 click_block = helper.split('click_app() {', 1)[1].split('\n}\n\ncase ', 1)[0]

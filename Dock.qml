@@ -143,6 +143,11 @@ Item {
       if (direct) return direct
     } catch (e) { }
     try {
+      var ipc = hypr.lastIpcObject || null
+      var ipcAddress = ipc ? String(ipc.address || "") : ""
+      if (ipcAddress) return ipcAddress
+    } catch (e) { }
+    try {
       var handle = hypr.handle || null
       return handle ? String(handle.address || "") : ""
     } catch (e) { return "" }
@@ -168,14 +173,13 @@ Item {
   function activatePreviewWindow(top) {
     if (!top) return
     var address = addressForToplevel(top)
+    var key = canonical(top.appId)
+    var title = String(top.title || "")
     if (!address) address = savedAddressForToplevel(top)
-    if (address) {
-      Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "activate", address])
-      return
-    }
-
-    try { top.activate() }
-    catch (e) { }
+    Quickshell.execDetached([
+      "bash", root.helperPath("omaux-dock-window"),
+      "activate-match", String(address || ""), key, title
+    ])
   }
 
   function appendRow(spec, group, pinned) {
