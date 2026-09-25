@@ -27,3 +27,13 @@ assert qml.count("font.family: root.uiFontFamily") >= 5
 assert "font.family: Style.font.family" not in qml
 
 print("preview click hit-target tests: PASS")
+
+# Dock and pin helper must share the same persistent pin state path.
+dock = Path("Dock.qml").read_text()
+pin_helper = Path("bin/omaux-dock-pin").read_text()
+assert ".config/omarchy/dock-pins.json" in dock
+assert "/omarchy/dock-pins.json" in pin_helper
+
+# Runtime helpers are installed in the user-local bin directory.
+assert "/.local/bin/" in dock
+assert "Qt.resolvedUrl(\"bin/\" + name)" not in dock
