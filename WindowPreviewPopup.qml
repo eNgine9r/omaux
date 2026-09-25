@@ -148,6 +148,12 @@ PanelWindow {
     }
   }
 
+  function activateSelectedWindow(top) {
+    if (!top || !root.dockRoot) return
+    root.dockRoot.activatePreviewWindow(top)
+    root.dismiss()
+  }
+
   function refreshWindows() {
     if (!root.mounted || !root.appKey) return
     var all = windowsFor(root.appKey)
@@ -327,12 +333,7 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  if (previewCard.modelData && root.dockRoot) {
-                    root.dockRoot.activatePreviewWindow(previewCard.modelData)
-                    root.dismiss()
-                  }
-                }
+                onClicked: root.activateSelectedWindow(previewCard.modelData)
               }
 
               Column {
@@ -405,6 +406,22 @@ PanelWindow {
                       }
                     }
                   }
+
+                  MouseArea {
+                    id: headerActivateMouse
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: closeButton.left
+                    anchors.rightMargin: 5
+                    z: 3
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: function(mouse) {
+                      mouse.accepted = true
+                      root.activateSelectedWindow(previewCard.modelData)
+                    }
+                  }
                 }
 
                 Item {
@@ -445,6 +462,19 @@ PanelWindow {
                     Behavior on opacity { NumberAnimation { duration: 110 } }
                     onStopped: captureStopped = true
                     onCaptureSourceChanged: captureStopped = false
+                  }
+
+                  MouseArea {
+                    id: previewActivateMouse
+                    anchors.fill: parent
+                    z: 5
+                    hoverEnabled: true
+                    preventStealing: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: function(mouse) {
+                      mouse.accepted = true
+                      root.activateSelectedWindow(previewCard.modelData)
+                    }
                   }
                 }
               }
