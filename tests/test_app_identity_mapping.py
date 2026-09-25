@@ -14,8 +14,8 @@ assert "web.hostLabel && alias === web.hostLabel" in dock
 assert "titleKey.indexOf(pinName) !== -1" in dock
 assert "function resolvedKeyForAppId(rawId, title)" in dock
 assert "var pinned = pinnedKeyForRawApp(rawId, title)" in dock
-assert "var key = resolvedKeyForAppId(rawId, top.title)" in dock
-assert "resolvedKeyForAppId(top.appId, top.title) === wanted" in dock
+assert "var key = resolvedKeyForAppId(rawId, title)" in dock
+assert "resolvedKeyForAppId(rawId, title) !== wanted" in dock
 assert "resolvedKeyForAppId(rawKey, windows[address].title || \"\")" in dock
 
 activate = dock.split("function activatePreviewWindow(top)", 1)[1].split("function appendRow", 1)[0]
