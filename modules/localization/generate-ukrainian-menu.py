@@ -61,6 +61,9 @@ for item_id, original in source.items():
             out[field] = T[value]
             translated = True
     if translated:
+        # Keep the complete upstream record. Omarchy normalizes omitted fields to
+        # empty strings before merging, so a label-only override would otherwise
+        # erase provider/action/when/aliases and break the menu item.
         overrides[item_id] = out
 
 DEST.parent.mkdir(parents=True, exist_ok=True)

@@ -7,7 +7,7 @@ PartOf=graphical-session.target
 Type=simple
 Environment=OMARCHY_PATH=/usr/share/omarchy
 Environment=OMARCHY_AUTO_SUSPEND_SECONDS=3600
-ExecStart=%h/.local/bin/omarchy-auto-suspend
+ExecStart=%h/.local/bin/omaux-auto-suspend
 Restart=always
 RestartSec=5
 

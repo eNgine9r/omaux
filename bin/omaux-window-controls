@@ -30,11 +30,13 @@ build_plugin() {
 
 [[ -s "$plugin" ]] || build_plugin
 
+# A login shell has these already; Commander/systemd callers may not.
 if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   sig=$(ls -1dt "$XDG_RUNTIME_DIR"/hypr/* 2>/dev/null | head -n1 | xargs -r basename)
   [[ -n "$sig" ]] && export HYPRLAND_INSTANCE_SIGNATURE="$sig"
 fi
 
+# Building is useful even outside a running compositor; loading can wait.
 hyprctl version >/dev/null 2>&1 || exit 0
 
 if hyprctl plugin list 2>/dev/null | grep -q 'hyprbars'; then

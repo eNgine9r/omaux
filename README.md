@@ -16,7 +16,6 @@ OmaUX is a modular desktop UX enhancement pack for Omarchy. It brings a polished
 - Windows-like window placement helpers
 - Optional Ukrainian UI/localization layer
 - Optional 1-hour auto-suspend profile with passwordless resume
-- Chrome system-frame integration to avoid duplicate window controls
 - Update-safe, modular architecture with explicit opt-in system integrations
 
 ## Installation

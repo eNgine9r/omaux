@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
+"""Windows-style placement helper for Omarchy / Hyprland 0.56.x."""
 from __future__ import annotations
-import json, subprocess, sys, time
+
+import json
+import subprocess
+import sys
+import time
 from pathlib import Path
+
 ACTION = sys.argv[1] if len(sys.argv) > 1 else "restore"
 HYPR = ["/usr/bin/hyprctl"]
 STATE = Path.home() / ".local/state/omaux/window-layout.json"
@@ -9,53 +15,246 @@ OUTER = 8
 INNER = 6
 
 def hjson(command: str):
-    p = subprocess.run(HYPR + ["-j", command], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    if p.returncode: return None
-    try: return json.loads(p.stdout)
-    except Exception: return None
+    p = subprocess.run(
+        HYPR + ["-j", command],
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
+    if p.returncode:
+        return None
+    try:
+        return json.loads(p.stdout)
+    except Exception:
+        return None
 
 def batch(expressions: list[str]) -> bool:
-    if not expressions: return True
+    if not expressions:
+        return True
     arg = "; ".join("dispatch " + expr for expr in expressions)
-    return subprocess.run(HYPR + ["--batch", arg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    p = subprocess.run(
+        HYPR + ["--batch", arg],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return p.returncode == 0
 
 def load_state() -> dict:
-    try: return json.loads(STATE.read_text())
-    except Exception: return {}
+    try:
+        raw = json.loads(STATE.read_text())
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
 
 def save_state(data: dict) -> None:
     STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.parent.chmod(0o700)
     tmp = STATE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, separators=(",", ":")))
+    tmp.chmod(0o600)
     tmp.replace(STATE)
 
-def selector(addr: str) -> str: return f"address:{addr}"
+def selector(addr: str) -> str:
+    return f"address:{addr}"
+
 def active_window():
     w = hjson("activewindow")
     return w if isinstance(w, dict) and w.get("address") else None
 
+def window_by_addr(addr: str):
+    clients = hjson("clients") or []
+    return next((w for w in clients if w.get("address") == addr), None)
+
+def workarea_for(win: dict):
+    monitors = hjson("monitors") or []
+    mid = win.get("monitor")
+    mon = next((m for m in monitors if m.get("id") == mid), None)
+    if not mon:
+        mon = next((m for m in monitors if m.get("focused")), None)
+    if not mon:
+        return None
+
+    scale = float(mon.get("scale") or 1.0)
+    mw = int(round(float(mon.get("width") or 0) / scale))
+    mh = int(round(float(mon.get("height") or 0) / scale))
+    mx = int(mon.get("x") or 0)
+    my = int(mon.get("y") or 0)
+    r = list(mon.get("reserved") or [0, 0, 0, 0]) + [0, 0, 0, 0]
+    left, top, right, bottom = map(int, r[:4])
+
+    x0 = mx + left + OUTER
+    y0 = my + top + OUTER
+    ww = max(320, mw - left - right - OUTER * 2)
+    wh = max(240, mh - top - bottom - OUTER * 2)
+    return x0, y0, ww, wh
+
 def geometry(win: dict) -> dict:
-    at=list(win.get("at") or [0,0]); size=list(win.get("size") or [0,0])
-    return {"x":int(at[0]),"y":int(at[1]),"w":int(size[0]),"h":int(size[1]),"floating":bool(win.get("floating")),"fullscreen":int(win.get("fullscreen") or 0)}
+    at = list(win.get("at") or [0, 0])
+    size = list(win.get("size") or [0, 0])
+    return {
+        "x": int(at[0]), "y": int(at[1]),
+        "w": int(size[0]), "h": int(size[1]),
+        "floating": bool(win.get("floating")),
+        "fullscreen": int(win.get("fullscreen") or 0),
+    }
+
+def close_enough(a: dict | None, b: dict | None, tol: int = 8) -> bool:
+    if not a or not b:
+        return False
+    return (
+        abs(int(a.get("x", 0)) - int(b.get("x", 0))) <= tol
+        and abs(int(a.get("y", 0)) - int(b.get("y", 0))) <= tol
+        and abs(int(a.get("w", 0)) - int(b.get("w", 0))) <= tol
+        and abs(int(a.get("h", 0)) - int(b.get("h", 0))) <= tol
+        and bool(a.get("floating")) == bool(b.get("floating"))
+    )
+
+def unset_fullscreen_exprs(addr: str):
+    sel = selector(addr)
+    return [
+        f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "fullscreen", action = "unset" }})',
+        f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "unset" }})',
+    ]
+
+def refresh_after_unmaximize(win: dict):
+    if int(win.get("fullscreen") or 0) == 0:
+        return win
+    addr = win["address"]
+    batch(unset_fullscreen_exprs(addr))
+    time.sleep(0.08)
+    return window_by_addr(addr) or win
+
+def place(addr: str, x: int, y: int, w: int, h: int):
+    sel = selector(addr)
+    return batch(unset_fullscreen_exprs(addr) + [
+        f'hl.dsp.window.float({{ window = "{sel}", action = "enable" }})',
+        f'hl.dsp.window.resize({{ window = "{sel}", x = {int(w)}, y = {int(h)} }})',
+        f'hl.dsp.window.move({{ window = "{sel}", x = {int(x)}, y = {int(y)} }})',
+    ])
 
 def main():
-    win=active_window()
-    if not win: return
-    addr=win["address"]
-    states=load_state()
-    sel=selector(addr)
-    if ACTION=="maximize":
-        entry=states.get(addr) or {}
-        if int(win.get("fullscreen") or 0)==1:
-            pre=entry.pop("preMax",None)
-            expr=[f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "unset" }})']
-            if pre and not pre.get("floating"):
-                expr.append(f'hl.dsp.window.float({{ window = "{sel}", action = "disable" }})')
-            batch(expr); states.pop(addr,None); save_state(states)
-        else:
-            entry["preMax"]=geometry(win); states[addr]=entry; save_state(states)
-            batch([f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "set" }})'])
+    win = active_window()
+    if not win:
         return
-    raise SystemExit(f"unsupported action: {ACTION}")
 
-if __name__=="__main__": main()
+    addr = win["address"]
+    area = workarea_for(win)
+    if not area:
+        return
+    x0, y0, ww, wh = area
+
+    half_w = max(240, (ww - INNER) // 2)
+    half_h = max(180, (wh - INNER) // 2)
+
+    targets = {
+        "left": (x0, y0, half_w, wh),
+        "right": (x0 + half_w + INNER, y0, half_w, wh),
+        "top-left": (x0, y0, half_w, half_h),
+        "top-right": (x0 + half_w + INNER, y0, half_w, half_h),
+        "bottom-left": (x0, y0 + half_h + INNER, half_w, half_h),
+        "bottom-right": (x0 + half_w + INNER, y0 + half_h + INNER, half_w, half_h),
+    }
+
+    states = load_state()
+
+    if ACTION in targets:
+        win = refresh_after_unmaximize(win)
+        current = geometry(win)
+        old = states.get(addr)
+        if not old or not close_enough(current, old.get("lastSnap")):
+            old = {"original": current}
+
+        x, y, w, h = targets[ACTION]
+        if place(addr, x, y, w, h):
+            old["lastSnap"] = {
+                "x": x, "y": y, "w": w, "h": h,
+                "floating": True, "fullscreen": 0,
+            }
+            states[addr] = old
+            save_state(states)
+        return
+
+    if ACTION == "maximize":
+        sel = selector(addr)
+        entry = states.get(addr) or {}
+        if int(win.get("fullscreen") or 0) == 1:
+            exprs = unset_fullscreen_exprs(addr)
+            premax = entry.pop("preMax", None)
+            if premax:
+                if premax.get("floating"):
+                    exprs += [
+                        f'hl.dsp.window.float({{ window = "{sel}", action = "enable" }})',
+                        f'hl.dsp.window.resize({{ window = "{sel}", x = {int(premax.get("w", 800))}, y = {int(premax.get("h", 600))} }})',
+                        f'hl.dsp.window.move({{ window = "{sel}", x = {int(premax.get("x", x0))}, y = {int(premax.get("y", y0))} }})',
+                    ]
+                else:
+                    exprs += [
+                        f'hl.dsp.window.float({{ window = "{sel}", action = "disable" }})'
+                    ]
+            batch(exprs)
+            if entry:
+                states[addr] = entry
+            else:
+                states.pop(addr, None)
+            save_state(states)
+        else:
+            entry["preMax"] = geometry(win)
+            states[addr] = entry
+            save_state(states)
+            batch([
+                f'hl.dsp.window.fullscreen({{ window = "{sel}", mode = "maximized", action = "set" }})'
+            ])
+        return
+
+    if ACTION == "restore":
+        sel = selector(addr)
+        if int(win.get("fullscreen") or 0) != 0:
+            entry = states.get(addr) or {}
+            exprs = unset_fullscreen_exprs(addr)
+            premax = entry.pop("preMax", None)
+            if premax:
+                if premax.get("floating"):
+                    exprs += [
+                        f'hl.dsp.window.float({{ window = "{sel}", action = "enable" }})',
+                        f'hl.dsp.window.resize({{ window = "{sel}", x = {int(premax.get("w", 800))}, y = {int(premax.get("h", 600))} }})',
+                        f'hl.dsp.window.move({{ window = "{sel}", x = {int(premax.get("x", x0))}, y = {int(premax.get("y", y0))} }})',
+                    ]
+                else:
+                    exprs += [
+                        f'hl.dsp.window.float({{ window = "{sel}", action = "disable" }})'
+                    ]
+            batch(exprs)
+            if entry:
+                states[addr] = entry
+            else:
+                states.pop(addr, None)
+            save_state(states)
+            return
+
+        old = states.get(addr)
+        current = geometry(win)
+        if old and close_enough(current, old.get("lastSnap")):
+            original = old.get("original") or {}
+            exprs = unset_fullscreen_exprs(addr)
+            if original.get("floating"):
+                exprs += [
+                    f'hl.dsp.window.float({{ window = "{sel}", action = "enable" }})',
+                    f'hl.dsp.window.resize({{ window = "{sel}", x = {int(original.get("w", 800))}, y = {int(original.get("h", 600))} }})',
+                    f'hl.dsp.window.move({{ window = "{sel}", x = {int(original.get("x", x0))}, y = {int(original.get("y", y0))} }})',
+                ]
+            else:
+                exprs += [
+                    f'hl.dsp.window.float({{ window = "{sel}", action = "disable" }})'
+                ]
+            batch(exprs)
+        states.pop(addr, None)
+        save_state(states)
+        return
+
+    if ACTION == "center":
+        w = int(ww * 0.72)
+        h = int(wh * 0.78)
+        place(addr, x0 + (ww - w) // 2, y0 + (wh - h) // 2, w, h)
+        return
+
+    raise SystemExit(f"unknown action: {ACTION}")
+
+if __name__ == "__main__":
+    main()

@@ -30,8 +30,10 @@ pin_app() {
   if jq -e --arg key "$key" 'any(.pins[]; .key == $key)' "$PINS" >/dev/null; then
     exit 0
   fi
-  next=$(jq -c --arg key "$key" --arg desktop "$desktop" --arg name "$name" --arg icon "$icon" '.pins += [{key:$key,desktop:$desktop,name:$name,icon:$icon}]' "$PINS")
+  next=$(jq -c --arg key "$key" --arg desktop "$desktop" --arg name "$name" --arg icon "$icon" \
+    '.pins += [{key:$key,desktop:$desktop,name:$name,icon:$icon}]' "$PINS")
   atomic_write "$next"
+  omarchy-notification-send -g '' 'Pinned' "$name added to OmaUX Dock" >/dev/null 2>&1 || true
 }
 
 unpin_app() {
@@ -40,6 +42,7 @@ unpin_app() {
   ensure_state
   next=$(jq -c --arg key "$key" '.pins |= map(select(.key != $key))' "$PINS")
   atomic_write "$next"
+  omarchy-notification-send -g '' 'Unpinned' "$name removed from OmaUX Dock" >/dev/null 2>&1 || true
 }
 
 case "${1:-}" in

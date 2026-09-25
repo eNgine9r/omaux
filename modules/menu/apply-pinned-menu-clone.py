@@ -29,15 +29,16 @@ def replace_once(text, old, new, label):
 
 
 def patch_menu(text):
-    text = replace_once(text, 'import "MenuModel.js" as MenuModel\n', 'import "MenuModel.js" as MenuModel\nimport "AppSearch.js" as AppSearch\n', 'AppSearch import')
+    text = replace_once(text, 'import \"MenuModel.js\" as MenuModel\n', 'import \"MenuModel.js\" as MenuModel\nimport \"AppSearch.js\" as AppSearch\n', 'AppSearch import')
     props_old = '  property var manifest: null\n'
     props_new = '''  property var manifest: null
 
+  // User dock pins. Kept outside shell.json so pin/unpin is instant and persistent.
   property string dockPinsPath: Quickshell.env("HOME") + "/.config/omaux/pins.json"
   property var dockPinnedKeys: ({})
 
   function canonicalDockId(value) {
-    return String(value || "").toLowerCase().replace(/\.desktop$/, "").replace(/[^a-z0-9]+/g, "")
+    return String(value || "").toLowerCase().replace(/\\.desktop$/, "").replace(/[^a-z0-9]+/g, "")
   }
 
   function loadDockPins(raw) {
@@ -61,8 +62,186 @@ def patch_menu(text):
     if (!desktopId) return
     Quickshell.execDetached(["omaux-dock-pin", "toggle", String(desktopId), String(label || desktopId), String(icon || "")])
   }
+
+  function debugApps(arg) {
+    var count = -1
+    var error = ""
+    try { count = root.appLibrary ? root.appLibrary.sortedEntries("").length : -1 }
+    catch (e) { error = String(e) }
+    return JSON.stringify({
+      appLibrary: root.appLibrary !== null,
+      sortedEntries: count,
+      displayModel: displayModel.count,
+      activeMenu: root.activeMenu,
+      appsProviderLoaded: root.providersLoaded["apps"] === true,
+      error: error
+    })
+  }
 '''
     text = replace_once(text, props_old, props_new, 'dock pin properties')
+
+    app_lib_old = '''  readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
+'''
+    app_lib_new = '''  readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
+
+  function sortedAppEntries(query) {
+    if (root.appLibrary) return root.appLibrary.sortedEntries(query)
+    return AppSearch.sortedEntries(DesktopEntries.applications.values || [], query, null)
+  }
+
+  function appEntryName(entry) {
+    return root.appLibrary ? root.appLibrary.entryName(entry) : AppSearch.entryName(entry)
+  }
+
+  function appEntrySubtext(entry) {
+    return root.appLibrary ? root.appLibrary.entrySubtext(entry) : AppSearch.entrySubtext(entry)
+  }
+
+  function appIconSource(icon) {
+    if (root.appLibrary) return root.appLibrary.iconSource(icon)
+    var value = String(icon || "")
+    if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
+    if (value.charAt(0) === "/") return Util.fileUrl(value)
+    var themed = Quickshell.iconPath(value || "application-x-executable", true)
+    return themed && themed.length > 0 ? themed : Quickshell.iconPath("application-x-executable", true)
+  }
+
+  function launchDesktopApp(desktopId, label) {
+    var id = String(desktopId || "")
+    if (!id) return
+    if (root.appLibrary) { root.appLibrary.launch(id, label); return }
+    Quickshell.execDetached(["uwsm-app", "--", "gtk-launch", id + ".desktop"])
+  }
+'''
+    text = replace_once(text, app_lib_old, app_lib_new, 'direct DesktopEntries fallback')
+
+    merge_old = '''  function mergeAppRows() {
+    if (!root.appLibrary) return
+
+    var rows = root.appLibrary.sortedEntries("")
+    var appRows = []
+    for (var j = 0; j < rows.length; j++) {
+      var entry = rows[j].entry
+      var appId = String(entry.id || "")
+      if (!appId) continue
+      var subtext = root.appLibrary.entrySubtext(entry)
+'''
+    merge_new = '''  function mergeAppRows() {
+    var rows = root.sortedAppEntries("")
+    var appRows = []
+    for (var j = 0; j < rows.length; j++) {
+      var entry = rows[j].entry
+      var appId = String(entry.id || "")
+      if (!appId) continue
+      var subtext = root.appEntrySubtext(entry)
+'''
+    text = replace_once(text, merge_old, merge_new, 'apps direct merge')
+    text = replace_once(text, '        label: root.appLibrary.entryName(entry),\n', '        label: root.appEntryName(entry),\n', 'apps direct name')
+    text = replace_once(text, '      if (root.appLibrary) root.appLibrary.launch(appId, label)\n', '      root.launchDesktopApp(appId, label)\n', 'apps direct launch')
+    text = replace_once(text, '                source: row.isApp && root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : ""\n', '                source: row.isApp ? root.appIconSource(row.appIcon) : ""\n', 'apps direct icon')
+
+    desktop_conn_old = '''  Connections {
+    target: root.appLibrary
+    function onAppsChanged() {
+      if (root.providersLoaded["apps"]) root.mergeAppRows()
+    }
+  }
+'''
+    desktop_conn_new = '''  Connections {
+    target: root.appLibrary
+    function onAppsChanged() {
+      if (root.providersLoaded["apps"]) root.mergeAppRows()
+    }
+  }
+
+  Connections {
+    target: DesktopEntries.applications
+    function onValuesChanged() {
+      if (root.providersLoaded["apps"]) root.mergeAppRows()
+    }
+  }
+'''
+    text = replace_once(text, desktop_conn_old, desktop_conn_new, 'DesktopEntries watcher')
+
+    watchers_old = '''  // The JSONC sources are watched so live edits to the default file (or the
+  // user extension at ~/.config/omarchy/extensions/omarchy-menu.jsonc) take
+  // effect without restarting the shell.
+  FileView {
+    id: defaultMenuFile
+'''
+    watchers_new = '''  FileView {
+    id: dockPinsFile
+    path: root.dockPinsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadDockPins(text())
+    onFileChanged: reload()
+    onLoadFailed: root.loadDockPins("{}")
+  }
+
+  // The JSONC sources are watched so live edits to the default file (or the
+  // user extension at ~/.config/omarchy/extensions/omarchy-menu.jsonc) take
+  // effect without restarting the shell.
+  FileView {
+    id: defaultMenuFile
+'''
+    text = replace_once(text, watchers_old, watchers_new, 'dock pins watcher')
+
+    trail_old = '''              Row {
+                id: trail
+                width: Style.space(14)
+                anchors.right: parent.right
+'''
+    trail_new = '''              Row {
+                id: trail
+                width: row.isApp ? Style.space(34) : Style.space(14)
+                z: 4
+                anchors.right: parent.right
+'''
+    text = replace_once(text, trail_old, trail_new, 'app row trail width')
+
+    arrow_old = '''                Text {
+                  textFormat: Text.PlainText
+                  text: row.kind === "menu" || row.kind === "link" ? "›" : ""
+'''
+    pin_block = '''                Item {
+                  visible: row.isApp
+                  width: visible ? Style.space(30) : 0
+                  height: Style.space(30)
+
+                  Rectangle {
+                    anchors.fill: parent
+                    radius: Math.min(root.cornerRadius, width / 2)
+                    color: pinMouse.containsMouse ? Util.alpha(root.foreground, 0.10) : "transparent"
+
+                    Text {
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: ""
+                      color: root.isDockPinned(row.appId) ? Color.accent : (row.hasCursor ? root.selectedText : root.foreground)
+                      opacity: root.isDockPinned(row.appId) ? 1.0 : 0.48
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
+
+                    MouseArea {
+                      id: pinMouse
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: function(mouse) {
+                        root.toggleDockPin(row.appId, row.label, row.appIcon)
+                        mouse.accepted = true
+                      }
+                    }
+                  }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: row.kind === "menu" || row.kind === "link" ? "›" : ""
+'''
+    text = replace_once(text, arrow_old, pin_block, 'app pin button')
     return text
 
 
@@ -70,6 +249,11 @@ def main():
     if not SOURCE.is_dir():
         raise SystemExit('Omarchy menu source not found')
     key = source_key()
+    stamp = TARGET / '.dock-pin-source'
+    if stamp.exists() and stamp.read_text().strip() == key:
+        print(f'pinned menu clone current: {key[:12]}')
+        return
+
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     stage = TARGET.parent / f'.omaux-menu-stage-{os.getpid()}'
     if stage.exists():
@@ -83,6 +267,8 @@ def main():
     manifest['name'] = 'OmaUX Menu'
     manifest['description'] = 'Omarchy menu clone with OmaUX app pin actions'
     manifest.setdefault('omarchy', {})['clonedFrom'] = 'omarchy.menu'
+    if isinstance(manifest.get('barWidget'), dict):
+        manifest['barWidget']['displayName'] = 'OmaUX Menu'
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
 
     menu_path = stage / 'Menu.qml'
