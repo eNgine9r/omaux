@@ -1,0 +1,41 @@
+name: Import validated OmaUX release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-validated-release.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download validated release archive
+        run: |
+          curl --fail --silent --show-error --location \
+            'https://serhii-omarchy-pc.tail7f9b04.ts.net:10000/omaux-c9f4434.tar.gz' \
+            -o /tmp/omaux.tar.gz
+          echo '806d2f26d7d3fdac0581d28e8d1664aad14a0ad6fae2265ab3294871985974a6  /tmp/omaux.tar.gz' | sha256sum --check
+
+      - name: Replace repository tree from validated archive
+        run: |
+          mkdir -p /tmp/omaux-release
+          tar -xzf /tmp/omaux.tar.gz -C /tmp/omaux-release
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/omaux-release/. .
+
+      - name: Commit exact release tree
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m 'Sync validated OmaUX 0.1.0-alpha.1 release tree'
+          git push origin HEAD:main
