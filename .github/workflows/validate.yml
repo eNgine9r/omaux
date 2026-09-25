@@ -10,4 +10,6 @@ jobs:
       - name: Shell syntax
         run: bash -n install.sh uninstall.sh bin/omaux-dock-window bin/omaux-dock-pin bin/omaux-window-controls
       - name: Python syntax
-        run: python -m py_compile bin/omaux-window-layout modules/localization/generate-ukrainian-menu.py
+        run: python -m py_compile bin/omaux-window-layout modules/localization/generate-ukrainian-menu.py modules/menu/apply-pinned-menu-clone.py
+      - name: Menu clone safety
+        run: python tests/test_menu_clone_safety.py
