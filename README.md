@@ -1,14 +1,15 @@
 # OmaUX
 
-OmaUX is a modular desktop UX enhancement pack for Omarchy. It brings a polished application dock, real minimize/restore, persistent app pinning, macOS-style window controls, optional Ukrainian localization, and other quality-of-life improvements to Hyprland-based Omarchy desktops.
+OmaUX is a modular desktop UX enhancement pack for Omarchy. It brings a polished application dock, real minimize/restore, persistent app pinning, live running-window previews, macOS-style window controls, optional Ukrainian localization, and other quality-of-life improvements to Hyprland-based Omarchy desktops.
 
-> Current status: **0.1.0-alpha.2** — actively developed. The project is intentionally modular so new UX modules can be added without redesigning the core.
+> Current status: **0.1.0-alpha.3** — actively developed. The project is intentionally modular so new UX modules can be added without redesigning the core.
 
 ![OmaUX preview](assets/hero.svg)
 
 ## Highlights
 
 - macOS-style bottom Dock for pinned and running applications
+- Live hover previews for running windows with activate/close actions
 - Real minimize → Dock → restore workflow for Hyprland
 - Persistent app pinning, including pin/unpin from the Omarchy application list
 - macOS-style traffic-light window controls with close, minimize, maximize/restore
@@ -60,6 +61,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for details.
 ## Current modules
 
 - `Dock.qml` — dock UI and running/pinned application model
+- `WindowPreviewPopup.qml` — live per-window hover previews for running Dock applications
 - `bin/omaux-dock-window` — minimize/restore state engine
 - `bin/omaux-dock-pin` — persistent pin store
 - `bin/omaux-window-layout` — snap/maximize/restore helpers
