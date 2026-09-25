@@ -12,6 +12,11 @@ assert 'follow = true' not in helper
 assert 'activate_address() {' in helper
 assert 'restore_address "$addr"' in helper
 assert 'focus_window "$addr"' in helper
+
+assert 'follow = false, window =' in helper
+assert 'address:$addr' in helper
+assert 'address = [[$addr]]' not in helper
+assert 'window = [[address:$addr]]' not in helper
 assert '"activate", address' in dock
 assert 'root.minimizedWindows[address] !== undefined' not in dock
 print('multi-window dock restore tests: PASS')
