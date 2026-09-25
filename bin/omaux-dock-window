@@ -55,12 +55,12 @@ client_key_json() {
 
 move_window() {
   local addr="$1" workspace="$2"
-  hyprctl dispatch "hl.dsp.window.move({ workspace = [[$workspace]], follow = false, address = [[$addr]] })" >/dev/null
+  hyprctl dispatch "hl.dsp.window.move({ workspace = \"$workspace\", follow = false, window = \"address:$addr\" })" >/dev/null
 }
 
 focus_window() {
   local addr="$1"
-  hyprctl dispatch "hl.dsp.focus({ window = [[address:$addr]] })" >/dev/null 2>&1 || true
+  hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null 2>&1 || true
 }
 
 minimize_address() {
