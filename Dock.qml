@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.Commons
@@ -13,6 +14,7 @@ Item {
   property bool opened: true
   readonly property var appLibrary: shell ? shell.appLibrary : null
   property var minimizedCounts: ({})
+  property var minimizedWindows: ({})
   property string statePath: Quickshell.env("HOME") + "/.local/state/omaux/minimized.json"
   property string pinStatePath: Quickshell.env("HOME") + "/.config/omaux/pins.json"
   property var pinnedApps: []
@@ -84,15 +86,17 @@ Item {
 
   function loadMinimizedState(raw) {
     var counts = ({})
+    var windows = ({})
     try {
       var parsed = JSON.parse(String(raw || "{}"))
-      var windows = parsed.windows || ({})
+      windows = parsed.windows || ({})
       for (var address in windows) {
         var key = String(windows[address].appKey || "")
         if (key) counts[key] = Number(counts[key] || 0) + 1
       }
     } catch (e) { }
     root.minimizedCounts = counts
+    root.minimizedWindows = windows
     refreshTimer.restart()
   }
 
@@ -111,6 +115,48 @@ Item {
       if (top === active) groups[key].active = true
     }
     return groups
+  }
+
+  function windowsForKey(key) {
+    var wanted = String(key || "")
+    var result = []
+    if (!wanted) return result
+    var values = ToplevelManager.toplevels.values || []
+    for (var i = 0; i < values.length; i++) {
+      var top = values[i]
+      if (!top) continue
+      if (canonical(top.appId) === wanted) result.push(top)
+    }
+    return result
+  }
+
+  function hyprHandleForToplevel(top) {
+    if (!top) return null
+    try { return top.HyprlandToplevel.handle || null }
+    catch (e) { return null }
+  }
+
+  function addressForToplevel(top) {
+    var handle = hyprHandleForToplevel(top)
+    return handle ? String(handle.address || "") : ""
+  }
+
+  function activatePreviewWindow(top) {
+    if (!top) return
+    var address = addressForToplevel(top)
+    var hidden = false
+    var handle = hyprHandleForToplevel(top)
+    try {
+      hidden = handle && handle.workspace && String(handle.workspace.name || "") === "special:minimized"
+    } catch (e) { }
+
+    if (address && (root.minimizedWindows[address] !== undefined || hidden)) {
+      Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "restore", address])
+      return
+    }
+
+    try { top.activate() }
+    catch (e) { }
   }
 
   function appendRow(spec, group, pinned) {
@@ -234,6 +280,8 @@ Item {
     property bool minimizedApp: false
     property int windowCount: 0
     signal activated()
+    signal hoverEntered()
+    signal hoverExited()
 
     width: 36
     height: 43
@@ -319,6 +367,8 @@ Item {
       anchors.fill: parent
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
+      onEntered: buttonRoot.hoverEntered()
+      onExited: buttonRoot.hoverExited()
       onClicked: buttonRoot.activated()
     }
   }
@@ -346,6 +396,13 @@ Item {
       }
 
       mask: Region { item: dockCard }
+
+      WindowPreviewPopup {
+        id: windowPreview
+        dockRoot: root
+        hostWindow: dockWindow
+        dockCardItem: dockCard
+      }
 
       Rectangle {
         id: dockShadow
@@ -380,7 +437,10 @@ Item {
           DockButton {
             labelText: "Apps"
             glyph: "󰀻"
-            onActivated: Quickshell.execDetached(["omarchy-menu", "toggle", "apps"])
+            onActivated: {
+              windowPreview.dismiss()
+              Quickshell.execDetached(["omarchy-menu", "toggle", "apps"])
+            }
           }
 
           Rectangle {
@@ -394,6 +454,7 @@ Item {
             model: dockModel
 
             DockButton {
+              id: appButton
               required property string appKey
               required property string desktopId
               required property string label
@@ -408,7 +469,16 @@ Item {
               activeApp: active
               minimizedApp: runningCount > 0 && minimizedCount >= runningCount
               windowCount: runningCount
-              onActivated: root.clickApp(appKey, desktopId)
+
+              onHoverEntered: {
+                if (runningCount > 0) windowPreview.enterApp(appButton, appKey, label, iconSource)
+              }
+              onHoverExited: windowPreview.leaveApp(appKey)
+              onActivated: {
+                windowPreview.dismiss()
+                root.clickApp(appKey, desktopId)
+              }
+              Component.onDestruction: windowPreview.leaveApp(appKey)
             }
           }
         }
