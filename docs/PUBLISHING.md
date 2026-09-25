@@ -10,8 +10,8 @@ Description: `A modular desktop UX suite for Omarchy — Dock, minimize/restore,
 
 - Category: **Desktop**
 - Tags: **appearance**, **productivity**, **hyprland**
-- Version: `0.1.0-alpha.1`
-- Preview: `assets/hero.svg`
+- Version: `0.1.0-alpha.3`
+- Preview: `preview.png`
 - Install: `omarchy plugin add https://github.com/eNgine9r/omaux.git --enable`
 
 Before submission:
