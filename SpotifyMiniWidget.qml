@@ -80,7 +80,9 @@ Scope {
       width: 14
       height: 14
       property color iconColor: Color.foreground
+      property string iconKind: button.kind
       onIconColorChanged: requestPaint()
+      onIconKindChanged: requestPaint()
       onPaint: {
         var ctx = getContext("2d")
         ctx.clearRect(0, 0, width, height)
@@ -90,17 +92,17 @@ Scope {
         ctx.lineCap = "round"
         ctx.lineJoin = "round"
 
-        if (button.kind === "play") {
+        if (iconKind === "play") {
           ctx.beginPath()
           ctx.moveTo(4.2, 2.6)
           ctx.lineTo(11.2, 7)
           ctx.lineTo(4.2, 11.4)
           ctx.closePath()
           ctx.fill()
-        } else if (button.kind === "pause") {
+        } else if (iconKind === "pause") {
           ctx.fillRect(3.5, 2.7, 2.2, 8.6)
           ctx.fillRect(8.3, 2.7, 2.2, 8.6)
-        } else if (button.kind === "previous") {
+        } else if (iconKind === "previous") {
           ctx.fillRect(2.7, 3.0, 1.6, 8.0)
           ctx.beginPath()
           ctx.moveTo(10.9, 3.0)
@@ -108,7 +110,7 @@ Scope {
           ctx.lineTo(10.9, 11.0)
           ctx.closePath()
           ctx.fill()
-        } else if (button.kind === "next") {
+        } else if (iconKind === "next") {
           ctx.fillRect(9.7, 3.0, 1.6, 8.0)
           ctx.beginPath()
           ctx.moveTo(3.1, 3.0)
