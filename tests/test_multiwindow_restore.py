@@ -28,4 +28,11 @@ assert 'restore_address "$minimized"' in click_block
 assert 'focusHistoryID // 999999' in helper
 assert '[[ "$key" == "$wanted" && "$ws" == "special:minimized" ]]' in helper
 
+assert 'pointer_window_address() {' in helper
+assert 'hyprctl cursorpos -j' in helper
+assert 'minimize-pointer)' in helper
+assert 'addr=$(pointer_window_address || true)' in helper
+min_active = helper.split('  minimize-active)', 1)[1].split('    ;;', 1)[0]
+assert min_active.index('addr=$(active') < min_active.index('prune')
+
 print('multi-window dock restore tests: PASS')

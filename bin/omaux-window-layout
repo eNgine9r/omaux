@@ -8,7 +8,9 @@ import sys
 import time
 from pathlib import Path
 
-ACTION = sys.argv[1] if len(sys.argv) > 1 else "restore"
+RAW_ACTION = sys.argv[1] if len(sys.argv) > 1 else "restore"
+POINTER_TARGET = RAW_ACTION.endswith("-pointer")
+ACTION = RAW_ACTION[:-8] if POINTER_TARGET else RAW_ACTION
 HYPR = ["/usr/bin/hyprctl"]
 STATE = Path.home() / ".local/state/omaux/window-layout.json"
 OUTER = 8
@@ -64,6 +66,32 @@ def reconcile_state(data: dict, clients: list[dict]) -> dict:
 def active_window():
     w = hjson("activewindow")
     return w if isinstance(w, dict) and w.get("address") else None
+
+def pointer_window():
+    pos = hjson("cursorpos")
+    clients = hjson("clients") or []
+    if not isinstance(pos, dict):
+        return None
+    try:
+        x, y = float(pos.get("x")), float(pos.get("y"))
+    except (TypeError, ValueError):
+        return None
+    candidates = []
+    for w in clients:
+        if not w.get("mapped", False):
+            continue
+        if (w.get("workspace") or {}).get("name") == "special:minimized":
+            continue
+        at = list(w.get("at") or [0, 0])
+        size = list(w.get("size") or [0, 0])
+        if len(at) < 2 or len(size) < 2:
+            continue
+        x0, y0 = float(at[0]), float(at[1])
+        ww, hh = float(size[0]), float(size[1])
+        if x0 - 6 <= x < x0 + ww + 6 and y0 - 34 <= y < y0 + hh + 6:
+            candidates.append(w)
+    candidates.sort(key=lambda w: int(w.get("focusHistoryID", 999999) or 999999))
+    return candidates[0] if candidates else None
 
 def window_by_addr(addr: str):
     clients = hjson("clients") or []
@@ -137,7 +165,9 @@ def place(addr: str, x: int, y: int, w: int, h: int):
     ])
 
 def main():
-    win = active_window()
+    win = pointer_window() if POINTER_TARGET else active_window()
+    if not win and POINTER_TARGET:
+        win = active_window()
     if not win:
         return
 

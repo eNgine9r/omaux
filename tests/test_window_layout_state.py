@@ -26,4 +26,9 @@ assert reconciled == {'stable-keep': {'preMax': {'x': 2}}}
 
 legacy = {'0xbeef': {'original': {'x': 9}}}
 assert mod.reconcile_state(legacy, [{'address': '0xbeef'}]) == legacy
+assert hasattr(mod, 'pointer_window')
+source = path.read_text()
+assert 'POINTER_TARGET = RAW_ACTION.endswith("-pointer")' in source
+assert 'win = pointer_window() if POINTER_TARGET else active_window()' in source
+
 print('window layout stable-state tests: PASS')
