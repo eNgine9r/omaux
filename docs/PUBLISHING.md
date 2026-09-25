@@ -10,7 +10,7 @@ Description: `A modular desktop UX suite for Omarchy — Dock, minimize/restore,
 
 - Category: **Desktop**
 - Tags: **appearance**, **productivity**, **hyprland**
-- Version: `0.1.0-alpha.3`
+- Version: `0.1.0-alpha.4`
 - Preview: `preview.png`
 - Install: `omarchy plugin add https://github.com/eNgine9r/omaux.git --enable`
 
@@ -20,6 +20,8 @@ Before submission:
 omarchy plugin validate .
 bash -n install.sh uninstall.sh bin/omaux-dock-window bin/omaux-dock-pin bin/omaux-window-controls
 python -m py_compile bin/omaux-window-layout modules/menu/apply-pinned-menu-clone.py modules/localization/generate-ukrainian-menu.py
+python tests/test_menu_clone_safety.py
+python tests/test_pinned_hyprbars_source.py
 ```
 
 Submit the public repository through the official plugin submission form after the alpha is tagged.

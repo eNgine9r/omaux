@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.4
+- Require the pinned hyprbars upstream revision to be an exact 40-character lowercase Git commit SHA before any remote source fetch or build.
+- Keep the upstream checkout detached at the verified commit and verify `HEAD` before compiling.
+- Add a pinned-remote-source security regression test and run it in GitHub Actions.
+- Address the Omarchy Marketplace `remote-git-execution-unpinned` baseline finding with an explicit enforceable guard.
+
 ## 0.1.0-alpha.3
 - Add macOS-style live window previews for running Dock applications.
 - Show up to four live thumbnails with per-window activate and close actions plus overflow count.
