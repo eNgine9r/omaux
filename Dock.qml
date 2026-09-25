@@ -129,26 +129,51 @@ Item {
     return result
   }
 
-  function hyprHandleForToplevel(top) {
+  function hyprToplevelFor(top) {
     if (!top) return null
-    try { return top.HyprlandToplevel.handle || null }
+    try { return top.HyprlandToplevel || null }
     catch (e) { return null }
   }
 
   function addressForToplevel(top) {
-    var handle = hyprHandleForToplevel(top)
-    return handle ? String(handle.address || "") : ""
+    var hypr = hyprToplevelFor(top)
+    if (!hypr) return ""
+    try {
+      var direct = String(hypr.address || "")
+      if (direct) return direct
+    } catch (e) { }
+    try {
+      var handle = hypr.handle || null
+      return handle ? String(handle.address || "") : ""
+    } catch (e) { return "" }
+  }
+
+  function savedAddressForToplevel(top) {
+    if (!top) return ""
+    var wantedKey = canonical(top.appId)
+    var wantedTitle = String(top.title || "")
+    var exact = []
+    var sameApp = []
+    for (var address in root.minimizedWindows) {
+      var saved = root.minimizedWindows[address] || ({})
+      if (String(saved.appKey || "") !== wantedKey) continue
+      sameApp.push(address)
+      if (String(saved.title || "") === wantedTitle) exact.push(address)
+    }
+    if (exact.length === 1) return String(exact[0])
+    if (sameApp.length === 1) return String(sameApp[0])
+    return ""
   }
 
   function activatePreviewWindow(top) {
     if (!top) return
     var address = addressForToplevel(top)
+    if (!address) address = savedAddressForToplevel(top)
     if (address) {
-      // Resolve the real workspace at click time in the helper. QML state can
-      // lag when several windows of the same app are minimized/restored fast.
       Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "activate", address])
       return
     }
+
     try { top.activate() }
     catch (e) { }
   }
