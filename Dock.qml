@@ -67,12 +67,38 @@ Item {
     return match && match.length > 1 ? canonical(match[1]) : ""
   }
 
+  function entryAliasSignatures(entry) {
+    if (!entry) return []
+    var values = [
+      canonical(entry.name || ""),
+      canonical(entry.icon || "")
+    ]
+    var exec = String(entry.execString || "").trim()
+    var first = exec.match(/^[\\\"']?([^\\s\\\"']+)/)
+    if (first && first.length > 1) {
+      var command = String(first[1] || "")
+      var slash = command.lastIndexOf("/")
+      if (slash >= 0) command = command.slice(slash + 1)
+      values.push(canonical(command))
+    }
+    return values
+  }
+
+  function hasStrongAlias(rawKey, aliases) {
+    for (var i = 0; i < aliases.length; i++) {
+      var alias = String(aliases[i] || "")
+      if (alias.length >= 4 && rawKey.indexOf(alias) !== -1) return true
+    }
+    return false
+  }
+
   function entryForRawAppId(rawId) {
     var rawKey = canonical(rawId)
     if (!rawKey) return null
 
     var rows = allEntries()
     var webMatches = []
+    var aliasMatches = []
     for (var i = 0; i < rows.length; i++) {
       var entry = rows[i].entry
       if (!entry) continue
@@ -84,12 +110,19 @@ Item {
 
       // Omarchy web apps are launched with Chromium-family --app= URLs.
       // Their Wayland app id becomes e.g. chrome-youtube.com__-Default,
-      // which must be associated with YouTube.desktop rather than shown as
-      // a second generic "gear" application.
+      // which must be associated with YouTube.desktop rather than shown as       // a second generic "gear" application.
       var host = webAppHostSignature(entry.execString || "")
       if (host && rawKey.indexOf(host) !== -1) webMatches.push(entry)
+
+      // Some native apps use a reverse-DNS Wayland id that differs from the
+      // desktop id and omit StartupWMClass. Example:
+      //   localsend.desktop -> org.localsend.localsend_app
+      // Match only strong (>=4 chars) name/icon/executable aliases and only
+      // accept a unique result so we never attach a preview to the wrong app.
+      if (hasStrongAlias(rawKey, entryAliasSignatures(entry))) aliasMatches.push(entry)
     }
-    return webMatches.length === 1 ? webMatches[0] : null
+   if (webMatches.length === 1) return webMatches[0]
+    return aliasMatches.length === 1 ? aliasMatches[0] : null
   }
 
   function pinnedKeyForEntry(entry) {

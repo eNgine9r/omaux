@@ -9,7 +9,11 @@ assert "entry.execString" in dock
 assert "function commandAppIdSignature(execString)" in dock
 assert "commandAppId === rawKey" in dock
 assert "rawKey.indexOf(host) !== -1" in dock
-assert "return webMatches.length === 1 ? webMatches[0] : null" in dock
+assert "function entryAliasSignatures(entry)" in dock
+assert "function hasStrongAlias(rawKey, aliases)" in dock
+assert "alias.length >= 4 && rawKey.indexOf(alias) !== -1" in dock
+assert "aliasMatches.length === 1 ? aliasMatches[0] : null" in dock
+assert "if (webMatches.length === 1) return webMatches[0]" in dock
 assert "function resolvedKeyForAppId(rawId)" in dock
 assert "var key = resolvedKeyForAppId(rawId)" in dock
 assert "resolvedKeyForAppId(top.appId) === wanted" in dock
