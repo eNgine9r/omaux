@@ -2,6 +2,7 @@
 from pathlib import Path
 
 qml = Path("WindowPreviewPopup.qml").read_text()
+dock = Path("Dock.qml").read_text()
 
 assert "function activateSelectedWindow(top)" in qml
 assert "id: headerActivateMouse" in qml
@@ -10,4 +11,19 @@ assert "preventStealing: true" in qml
 assert qml.count("root.activateSelectedWindow(previewCard.modelData)") >= 3
 assert qml.index("id: screencopy") < qml.index("id: previewActivateMouse")
 assert qml.index("id: closeButton") < qml.index("id: headerActivateMouse")
+
+# Running-app icons are group affordances only: they expose previews and never
+# directly focus/minimize an arbitrary member of the group.
+activated = dock.split("onActivated: {", 2)[2].split("Component.onDestruction", 1)[0]
+assert "if (runningCount > 0)" in activated
+assert "windowPreview.enterApp(appButton, appKey, label, iconSource)" in activated
+assert activated.index("if (runningCount > 0)") < activated.index("root.clickApp(appKey, desktopId)")
+assert "root.clickApp(appKey, desktopId)" in activated
+
+# Preview text intentionally uses a proportional UI font rather than the shell's
+# monospace-oriented default.
+assert 'readonly property string uiFontFamily: "Noto Sans"' in qml
+assert qml.count("font.family: root.uiFontFamily") >= 5
+assert "font.family: Style.font.family" not in qml
+
 print("preview click hit-target tests: PASS")

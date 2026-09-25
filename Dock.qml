@@ -470,6 +470,12 @@ Item {
               }
               onHoverExited: windowPreview.leaveApp(appKey)
               onActivated: {
+                if (runningCount > 0) {
+                  // Running apps are window groups. Never choose a window from
+                  // the app icon itself; window selection belongs to previews.
+                  windowPreview.enterApp(appButton, appKey, label, iconSource)
+                  return
+                }
                 windowPreview.dismiss()
                 root.clickApp(appKey, desktopId)
               }

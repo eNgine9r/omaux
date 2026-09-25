@@ -16,6 +16,7 @@ PanelWindow {
   property var previewWindows: []
   property int totalWindowCount: 0
   property real anchorCenterX: 0
+  readonly property string uiFontFamily: "Noto Sans"
 
   property bool mounted: false
   property bool shown: false
@@ -289,9 +290,9 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             text: root.appLabel
             color: Color.foreground
-            font.family: Style.font.family
-            font.pixelSize: 12
-            font.bold: true
+            font.family: root.uiFontFamily
+            font.pixelSize: 13
+            font.weight: Font.DemiBold
             elide: Text.ElideRight
           }
 
@@ -301,7 +302,7 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             text: root.totalWindowCount > 1 ? String(root.totalWindowCount) + " вік." : ""
             color: Util.alpha(Color.foreground, 0.58)
-            font.family: Style.font.family
+            font.family: root.uiFontFamily
             font.pixelSize: 10
           }
         }
@@ -363,8 +364,9 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     text: previewCard.modelData ? String(previewCard.modelData.title || root.appLabel) : root.appLabel
                     color: Color.foreground
-                    font.family: Style.font.family
-                    font.pixelSize: 10
+                    font.family: root.uiFontFamily
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
                     elide: Text.ElideRight
                   }
 
@@ -386,9 +388,9 @@ PanelWindow {
                       anchors.centerIn: parent
                       text: "×"
                       color: closeMouse.containsMouse ? "#5b1410" : Util.alpha(Color.foreground, 0.72)
-                      font.family: Style.font.family
-                      font.pixelSize: 13
-                      font.bold: true
+                      font.family: root.uiFontFamily
+                      font.pixelSize: 14
+                      font.weight: Font.DemiBold
                     }
 
                     MouseArea {
@@ -490,7 +492,7 @@ PanelWindow {
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
           color: Util.alpha(Color.foreground, 0.54)
-          font.family: Style.font.family
+          font.family: root.uiFontFamily
           font.pixelSize: 10
         }
       }
