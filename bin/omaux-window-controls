@@ -28,6 +28,11 @@ case "$series" in
     ;;
 esac
 
+[[ "$upstream_commit" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "Pinned hyprbars source must be an exact 40-character commit SHA" >&2
+  exit 1
+}
+
 build_plugin() {
   local stage="$DATA_ROOT/.build-${hypr_version}-$$"
   local actual
