@@ -8,6 +8,6 @@ if hl.plugin and hl.plugin.hyprbars and hl.plugin.hyprbars.add_button then
     inactive_button_color="rgba(767680b8)"
   }}})
   hl.plugin.hyprbars.add_button({bg_color="rgb(ff5f57)",fg_color="rgb(5b1410)",size=12,icon="×",action="/usr/bin/hyprctl dispatch 'hl.dsp.window.close()'"})
-  hl.plugin.hyprbars.add_button({bg_color="rgb(febc2e)",fg_color="rgb(654800)",size=12,icon="−",action="omaux-dock-window minimize-active"})
-  hl.plugin.hyprbars.add_button({bg_color="rgb(28c840)",fg_color="rgb(07551a)",size=12,icon="+",action="omaux-window-layout maximize"})
+  hl.plugin.hyprbars.add_button({bg_color="rgb(febc2e)",fg_color="rgb(654800)",size=12,icon="−",action="omaux-dock-window minimize-pointer"})
+  hl.plugin.hyprbars.add_button({bg_color="rgb(28c840)",fg_color="rgb(07551a)",size=12,icon="+",action="omaux-window-layout maximize-pointer"})
 end
