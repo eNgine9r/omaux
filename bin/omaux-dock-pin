@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PINS="${XDG_CONFIG_HOME:-$HOME/.config}/omaux/pins.json"
+PINS="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dock-pins.json"
 mkdir -p "$(dirname "$PINS")"
 
 canonical() {

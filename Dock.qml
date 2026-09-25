@@ -16,7 +16,7 @@ Item {
   property var minimizedCounts: ({})
   property var minimizedWindows: ({})
   property string statePath: Quickshell.env("HOME") + "/.local/state/omaux/minimized.json"
-  property string pinStatePath: Quickshell.env("HOME") + "/.config/omaux/pins.json"
+  property string pinStatePath: Quickshell.env("HOME") + "/.config/omarchy/dock-pins.json"
   property var pinnedApps: []
 
   // Pins are user state, not code: menu pin actions update this file and the
@@ -45,8 +45,7 @@ Item {
   ListModel { id: dockModel }
 
   function helperPath(name) {
-    var u = Qt.resolvedUrl("bin/" + name).toString()
-    return decodeURIComponent(u.replace(/^file:\/\//, ""))
+    return Quickshell.env("HOME") + "/.local/bin/" + String(name || "")
   }
 
   function canonical(value) {
