@@ -136,16 +136,57 @@ Item {
     return id
   }
 
-  function resolvedKeyForAppId(rawId) {
-    var rawKey = canonical(rawId)
-    if (!rawKey) return ""
+  function browserWebAppIdentity(rawId) {
+    var raw = String(rawId || "").toLowerCase()
+    var match = raw.match(/^(?:chrome|chromium|brave|microsoft-edge|opera|vivaldi|helium)-(.+)$/)
+    if (!match || match.length < 2) return ({ web: false, key: "", hostLabel: "" })
+    var tail = String(match[1] || "")
+    var host = tail.split("__")[0]
+    var label = host.split(".")[0]
+    return ({ web: true, key: canonical(tail), hostLabel: canonical(label) })
+  }
 
+  function pinnedKeyForRawApp(rawId, title) {
+    var rawKey = canonical(rawId)
+    var titleKey = canonical(title)
+    var web = browserWebAppIdentity(rawId)
+    var matches = []
     for (var i = 0; i < root.pinnedApps.length; i++) {
       var pin = root.pinnedApps[i] || ({})
-      if (String(pin.key || "") === rawKey || canonical(pin.desktop || "") === rawKey)
-        return String(pin.key || rawKey)
+      var key = String(pin.key || canonical(pin.desktop || ""))
+      if (!key) continue
+      var aliases = [pin.key, pin.desktop, pin.name, pin.icon]
+      var hit = false
+      for (var j = 0; j < aliases.length; j++) {
+        var alias = canonical(aliases[j])
+        if (!alias) continue
+        if (rawKey === alias) return key
+        var target = web.web ? web.key : rawKey
+        if (alias.length >= 4 && target.indexOf(alias) !== -1) hit = true
+        if (web.web && web.hostLabel && alias === web.hostLabel) hit = true
+      }
+      var entry = findEntry(key, pin.desktop)
+      if (entry) {
+        var startup = canonical(entry.startupClass || "")
+        var commandId = commandAppIdSignature(entry.execString || "")
+        var host = webAppHostSignature(entry.execString || "")
+        if ((startup && startup === rawKey) || (commandId && commandId === rawKey)) return key
+        if (web.web && host && web.key.indexOf(host) !== -1) hit = true
+      }
+      if (!hit && web.web) {
+        var pinName = canonical(pin.name || "")
+        if (pinName.length >= 4 && titleKey.indexOf(pinName) !== -1) hit = true
+      }
+      if (hit && matches.indexOf(key) === -1) matches.push(key)
     }
+    return matches.length === 1 ? String(matches[0]) : ""
+  }
 
+  function resolvedKeyForAppId(rawId, title) {
+    var rawKey = canonical(rawId)
+    if (!rawKey) return ""
+    var pinned = pinnedKeyForRawApp(rawId, title)
+    if (pinned) return pinned
     var entry = entryForRawAppId(rawId)
     return entry ? pinnedKeyForEntry(entry) : rawKey
   }
@@ -184,7 +225,7 @@ Item {
       windows = parsed.windows || ({})
       for (var address in windows) {
         var rawKey = String(windows[address].appKey || "")
-        var key = resolvedKeyForAppId(rawKey)
+        var key = resolvedKeyForAppId(rawKey, windows[address].title || "")
         if (key) counts[key] = Number(counts[key] || 0) + 1
       }
     } catch (e) { }
@@ -201,7 +242,7 @@ Item {
       var top = values[i]
       if (!top) continue
       var rawId = String(top.appId || "")
-      var key = resolvedKeyForAppId(rawId)
+      var key = resolvedKeyForAppId(rawId, top.title)
       if (!key) continue
       if (!groups[key]) groups[key] = { key: key, rawId: rawId, count: 0, active: false }
       groups[key].count++
@@ -218,7 +259,7 @@ Item {
     for (var i = 0; i < values.length; i++) {
       var top = values[i]
       if (!top) continue
-      if (resolvedKeyForAppId(top.appId) === wanted) result.push(top)
+      if (resolvedKeyForAppId(top.appId, top.title) === wanted) result.push(top)
     }
     return result
   }
