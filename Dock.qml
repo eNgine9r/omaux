@@ -57,6 +57,66 @@ Item {
     catch (e) { return [] }
   }
 
+  function webAppHostSignature(execString) {
+    var match = String(execString || "").match("https?:\/\/([^\s\/\"']+)")
+    return match && match.length > 1 ? canonical(match[1]) : ""
+  }
+
+  function commandAppIdSignature(execString) {
+    var match = String(execString || "").match("--(?:app-id|class|name)=[\\\"']?([^\\s\\\"']+)")
+    return match && match.length > 1 ? canonical(match[1]) : ""
+  }
+
+  function entryForRawAppId(rawId) {
+    var rawKey = canonical(rawId)
+    if (!rawKey) return null
+
+    var rows = allEntries()
+    var webMatches = []
+    for (var i = 0; i < rows.length; i++) {
+      var entry = rows[i].entry
+      if (!entry) continue
+      var id = canonical(entry.id)
+      var startup = canonical(entry.startupClass || "")
+      var commandAppId = commandAppIdSignature(entry.execString || "")
+      if (id === rawKey || (startup && startup === rawKey) || (commandAppId && commandAppId === rawKey))
+        return entry
+
+      // Omarchy web apps are launched with Chromium-family --app= URLs.
+      // Their Wayland app id becomes e.g. chrome-youtube.com__-Default,
+      // which must be associated with YouTube.desktop rather than shown as
+      // a second generic "gear" application.
+      var host = webAppHostSignature(entry.execString || "")
+      if (host && rawKey.indexOf(host) !== -1) webMatches.push(entry)
+    }
+    return webMatches.length === 1 ? webMatches[0] : null
+  }
+
+  function pinnedKeyForEntry(entry) {
+    if (!entry) return ""
+    var id = canonical(entry.id)
+    for (var i = 0; i < root.pinnedApps.length; i++) {
+      var pin = root.pinnedApps[i] || ({})
+      if (String(pin.key || "") === id || canonical(pin.desktop || "") === id)
+        return String(pin.key || id)
+    }
+    return id
+  }
+
+  function resolvedKeyForAppId(rawId) {
+    var rawKey = canonical(rawId)
+    if (!rawKey) return ""
+
+    for (var i = 0; i < root.pinnedApps.length; i++) {
+      var pin = root.pinnedApps[i] || ({})
+      if (String(pin.key || "") === rawKey || canonical(pin.desktop || "") === rawKey)
+        return String(pin.key || rawKey)
+    }
+
+    var entry = entryForRawAppId(rawId)
+    return entry ? pinnedKeyForEntry(entry) : rawKey
+  }
+
   function findEntry(key, desktopHint) {
     var rows = allEntries()
     var hint = canonical(desktopHint)
@@ -90,7 +150,8 @@ Item {
       var parsed = JSON.parse(String(raw || "{}"))
       windows = parsed.windows || ({})
       for (var address in windows) {
-        var key = String(windows[address].appKey || "")
+        var rawKey = String(windows[address].appKey || "")
+        var key = resolvedKeyForAppId(rawKey)
         if (key) counts[key] = Number(counts[key] || 0) + 1
       }
     } catch (e) { }
@@ -107,7 +168,7 @@ Item {
       var top = values[i]
       if (!top) continue
       var rawId = String(top.appId || "")
-      var key = canonical(rawId)
+      var key = resolvedKeyForAppId(rawId)
       if (!key) continue
       if (!groups[key]) groups[key] = { key: key, rawId: rawId, count: 0, active: false }
       groups[key].count++
@@ -124,7 +185,7 @@ Item {
     for (var i = 0; i < values.length; i++) {
       var top = values[i]
       if (!top) continue
-      if (canonical(top.appId) === wanted) result.push(top)
+      if (resolvedKeyForAppId(top.appId) === wanted) result.push(top)
     }
     return result
   }
