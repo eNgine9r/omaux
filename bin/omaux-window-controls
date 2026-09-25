@@ -16,13 +16,31 @@ flock -w 90 9
 hypr_version=$(pkg-config --modversion hyprland 2>/dev/null || true)
 [[ -n "$hypr_version" ]] || exit 0
 series=$(awk -F. '{print $1 "." $2 ".0"}' <<<"$hypr_version")
-tag="v$series"
 plugin="$LIB_DIR/hyprbars-$hypr_version.so"
+
+case "$series" in
+  0.56.0)
+    upstream_commit="7644cecdb947060682891a0db2a0cdc5c0b9e704"
+    ;;
+  *)
+    echo "Unsupported Hyprland series for pinned hyprbars build: $series" >&2
+    exit 1
+    ;;
+esac
 
 build_plugin() {
   local stage="$DATA_ROOT/.build-${hypr_version}-$$"
+  local actual
   rm -rf "$stage"
-  git clone --quiet --depth=1 --branch "$tag" "$REPO_URL" "$stage"
+  git clone --quiet --filter=blob:none --no-checkout "$REPO_URL" "$stage"
+  git -C "$stage" fetch --quiet --depth=1 origin "$upstream_commit"
+  git -C "$stage" checkout --quiet --detach "$upstream_commit"
+  actual=$(git -C "$stage" rev-parse HEAD)
+  [[ "$actual" == "$upstream_commit" ]] || {
+    echo "Pinned hyprbars commit verification failed" >&2
+    rm -rf "$stage"
+    exit 1
+  }
   make -C "$stage/hyprbars" -j2 >/dev/null
   install -Dm755 "$stage/hyprbars/hyprbars.so" "$plugin"
   rm -rf "$stage"
