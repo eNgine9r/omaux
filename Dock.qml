@@ -234,19 +234,55 @@ Item {
     refreshTimer.restart()
   }
 
+  function rawIdForHyprToplevel(top) {
+    if (!top) return ""
+    try {
+      var ipc = top.lastIpcObject || ({})
+      var cls = String(ipc["class"] || ipc.initialClass || "")
+      if (cls) return cls
+    } catch (e) { }
+    try { return top.wayland ? String(top.wayland.appId || "") : "" }
+    catch (e2) { return "" }
+  }
+
+  function titleForHyprToplevel(top) {
+    if (!top) return ""
+    try { if (top.title) return String(top.title) } catch (e) { }
+    try { return top.wayland ? String(top.wayland.title || "") : "" }
+    catch (e2) { return "" }
+  }
+
+  function waylandForHyprToplevel(top) {
+    if (!top) return null
+    try { if (top.wayland) return top.wayland } catch (e) { }
+    var address = ""
+    try { address = String(top.address || "") } catch (e2) { }
+    if (!address) return null
+    var values = ToplevelManager.toplevels.values || []
+    for (var i = 0; i < values.length; i++) {
+      var candidate = values[i]
+      if (!candidate) continue
+      var hypr = hyprToplevelFor(candidate)
+      if (!hypr) continue
+      try { if (String(hypr.address || "") === address) return candidate } catch (e3) { }
+    }
+    return null
+  }
+
   function runningGroups() {
     var groups = ({})
-    var values = ToplevelManager.toplevels.values || []
-    var active = ToplevelManager.activeToplevel
+    var values = Hyprland.toplevels.values || []
+    var active = Hyprland.activeToplevel
     for (var i = 0; i < values.length; i++) {
       var top = values[i]
       if (!top) continue
-      var rawId = String(top.appId || "")
-      var key = resolvedKeyForAppId(rawId, top.title)
+      var rawId = rawIdForHyprToplevel(top)
+      var title = titleForHyprToplevel(top)
+      var key = resolvedKeyForAppId(rawId, title)
       if (!key) continue
       if (!groups[key]) groups[key] = { key: key, rawId: rawId, count: 0, active: false }
       groups[key].count++
-      if (top === active) groups[key].active = true
+      if (top === active || top.activated === true) groups[key].active = true
     }
     return groups
   }
@@ -255,11 +291,15 @@ Item {
     var wanted = String(key || "")
     var result = []
     if (!wanted) return result
-    var values = ToplevelManager.toplevels.values || []
+    var values = Hyprland.toplevels.values || []
     for (var i = 0; i < values.length; i++) {
       var top = values[i]
       if (!top) continue
-      if (resolvedKeyForAppId(top.appId, top.title) === wanted) result.push(top)
+      var rawId = rawIdForHyprToplevel(top)
+      var title = titleForHyprToplevel(top)
+      if (resolvedKeyForAppId(rawId, title) !== wanted) continue
+      var wayland = waylandForHyprToplevel(top)
+      if (wayland) result.push(wayland)
     }
     return result
   }
@@ -378,6 +418,18 @@ Item {
   }
 
   Timer {
+    id: hyprRefreshDelay
+    interval: 120
+    repeat: false
+    onTriggered: refreshTimer.restart()
+  }
+
+  function requestHyprlandRefresh() {
+    Hyprland.refreshToplevels()
+    hyprRefreshDelay.restart()
+  }
+
+  Timer {
     // Safety reconciliation is intentionally slow; normal updates are event-driven.
     interval: 15000
     running: true
@@ -406,7 +458,7 @@ Item {
   }
 
   Connections {
-    target: ToplevelManager.toplevels
+    target: Hyprland.toplevels
     function onValuesChanged() {
       Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "prune"])
       refreshTimer.restart()
@@ -414,7 +466,15 @@ Item {
   }
 
   Connections {
-    target: ToplevelManager
+    target: ToplevelManager.toplevels
+    function onValuesChanged() {
+      Quickshell.execDetached(["bash", root.helperPath("omaux-dock-window"), "prune"])
+      root.requestHyprlandRefresh()
+    }
+  }
+
+  Connections {
+    target: Hyprland
     function onActiveToplevelChanged() { refreshTimer.restart() }
   }
 
@@ -425,7 +485,7 @@ Item {
 
   Component.onCompleted: {
     if (root.appLibrary) root.appLibrary.refreshIcons()
-    refreshTimer.restart()
+    root.requestHyprlandRefresh()
   }
 
   component DockButton: Item {
