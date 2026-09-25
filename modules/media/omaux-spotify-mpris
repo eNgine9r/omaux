@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PLAYER="${OMAUX_SPOTIFY_PLAYER:-spotify}"
+ACTION="${1:-status}"
+
+have_playerctl() { command -v playerctl >/dev/null 2>&1; }
+player_exists() { playerctl -l 2>/dev/null | grep -Eiq '(^|\.)spotify($|\.)'; }
+
+if ! have_playerctl; then
+  printf '{"available":false,"reason":"playerctl_missing"}\n'
+  exit 0
+fi
+
+case "$ACTION" in
+  previous|next|play-pause|play|pause)
+    playerctl --player="$PLAYER" "$ACTION" 2>/dev/null || true
+    ;;
+  status)
+    if ! player_exists; then
+      printf '{"available":false,"reason":"spotify_inactive"}\n'
+      exit 0
+    fi
+    exec playerctl --player="$PLAYER" metadata --format \
+      '{"available":true,"status":"{{status}}","title":{{title | markup_escape | json}},"artist":{{artist | markup_escape | json}},"album":{{album | markup_escape | json}},"artUrl":{{mpris:artUrl | json}},"length":{{mpris:length}},"position":{{position}}}'
+    ;;
+  follow)
+    exec playerctl --player="$PLAYER" --follow metadata --format \
+      '{"available":true,"status":"{{status}}","title":{{title | markup_escape | json}},"artist":{{artist | markup_escape | json}},"album":{{album | markup_escape | json}},"artUrl":{{mpris:artUrl | json}},"length":{{mpris:length}},"position":{{position}}}'
+    ;;
+  *)
+    echo "usage: $0 {status|follow|previous|play-pause|next|play|pause}" >&2
+    exit 2
+    ;;
+esac
