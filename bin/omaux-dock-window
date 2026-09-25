@@ -17,6 +17,10 @@ atomic_state() {
   local tmp
   tmp=$(mktemp "$STATE_DIR/.minimized.XXXXXX")
   cat >"$tmp"
+  if [[ -f "$STATE" ]] && cmp -s "$tmp" "$STATE"; then
+    rm -f "$tmp"
+    return 0
+  fi
   mv "$tmp" "$STATE"
 }
 
