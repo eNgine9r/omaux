@@ -3,11 +3,16 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 SOURCE = Path('/usr/share/omarchy/shell/plugins/menu')
-TARGET = Path.home() / '.config/omarchy/plugins/io.github.engine9r.omaux-menu'
-PATCH_VERSION = 'dock-pin-v3'
+PLUGIN_ID = 'io.github.engine9r.omaux-menu'
+TARGET = Path.home() / f'.config/omarchy/plugins/{PLUGIN_ID}'
+PATCH_VERSION = 'dock-pin-v4'
+OWNER_MARKER = '.omaux-managed.json'
+BACKUP_ROOT = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'omaux/backups/menu'
 APP_SEARCH_SOURCE = Path('/usr/share/omarchy/shell/services/AppSearch.js')
 FILES = ('manifest.json', 'Menu.qml', 'MenuModel.js', 'BarWidget.qml')
 
@@ -245,6 +250,76 @@ def patch_menu(text):
     return text
 
 
+def read_json(path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def managed_target_kind(target):
+    if target.is_symlink() or not target.is_dir():
+        return None
+
+    marker = read_json(target / OWNER_MARKER)
+    if (
+        isinstance(marker, dict)
+        and marker.get('manager') == 'OmaUX'
+        and marker.get('pluginId') == PLUGIN_ID
+    ):
+        return 'managed'
+
+    # Backward-compatible ownership proof for alpha.1 clones created by OmaUX.
+    manifest = read_json(target / 'manifest.json')
+    if (
+        (target / '.dock-pin-source').is_file()
+        and isinstance(manifest, dict)
+        and manifest.get('id') == PLUGIN_ID
+        and isinstance(manifest.get('omarchy'), dict)
+        and manifest['omarchy'].get('clonedFrom') == 'omarchy.menu'
+    ):
+        return 'legacy-managed'
+    return None
+
+
+def write_owner_marker(stage, key):
+    marker = {
+        'schemaVersion': 1,
+        'manager': 'OmaUX',
+        'pluginId': PLUGIN_ID,
+        'sourceKey': key,
+    }
+    (stage / OWNER_MARKER).write_text(json.dumps(marker, indent=2) + '\n')
+
+
+def install_stage(stage):
+    if TARGET.is_symlink():
+        raise RuntimeError(f'refusing to replace symlink target: {TARGET}')
+    if TARGET.exists() and not TARGET.is_dir():
+        raise RuntimeError(f'refusing to replace non-directory target: {TARGET}')
+
+    backup = None
+    if TARGET.exists():
+        ownership = managed_target_kind(TARGET)
+        if ownership is None:
+            raise RuntimeError(
+                f'refusing to replace unmanaged plugin directory: {TARGET}; '
+                'move it aside manually if you want OmaUX to manage this plugin ID'
+            )
+        BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+        backup = BACKUP_ROOT / f'{PLUGIN_ID}-{stamp}'
+        shutil.move(str(TARGET), str(backup))
+
+    try:
+        stage.rename(TARGET)
+    except Exception:
+        if backup and backup.exists() and not TARGET.exists():
+            shutil.move(str(backup), str(TARGET))
+        raise
+    return backup
+
+
 def main():
     if not SOURCE.is_dir():
         raise SystemExit('Omarchy menu source not found')
@@ -255,15 +330,13 @@ def main():
         return
 
     TARGET.parent.mkdir(parents=True, exist_ok=True)
-    stage = TARGET.parent / f'.omaux-menu-stage-{os.getpid()}'
-    if stage.exists():
-        shutil.rmtree(stage)
-    shutil.copytree(SOURCE, stage, symlinks=False)
+    stage = Path(tempfile.mkdtemp(prefix='.omaux-menu-stage-', dir=TARGET.parent))
+    shutil.copytree(SOURCE, stage, dirs_exist_ok=True, symlinks=False)
     shutil.copy2(APP_SEARCH_SOURCE, stage / 'AppSearch.js')
 
     manifest_path = stage / 'manifest.json'
     manifest = json.loads(manifest_path.read_text())
-    manifest['id'] = 'io.github.engine9r.omaux-menu'
+    manifest['id'] = PLUGIN_ID
     manifest['name'] = 'OmaUX Menu'
     manifest['description'] = 'Omarchy menu clone with OmaUX app pin actions'
     manifest.setdefault('omarchy', {})['clonedFrom'] = 'omarchy.menu'
@@ -274,10 +347,16 @@ def main():
     menu_path = stage / 'Menu.qml'
     menu_path.write_text(patch_menu(menu_path.read_text()))
     (stage / '.dock-pin-source').write_text(key + '\n')
+    write_owner_marker(stage, key)
 
-    if TARGET.exists():
-        shutil.rmtree(TARGET)
-    stage.rename(TARGET)
+    try:
+        backup = install_stage(stage)
+    except Exception:
+        if stage.exists():
+            shutil.rmtree(stage)
+        raise
+    if backup:
+        print(f'previous managed menu backed up: {backup}')
     print(f'pinned menu clone rebuilt: {key[:12]}')
 
 

@@ -2,7 +2,7 @@
 
 OmaUX is a modular desktop UX enhancement pack for Omarchy. It brings a polished application dock, real minimize/restore, persistent app pinning, macOS-style window controls, optional Ukrainian localization, and other quality-of-life improvements to Hyprland-based Omarchy desktops.
 
-> Current status: **0.1.0-alpha.1** — actively developed. The project is intentionally modular so new UX modules can be added without redesigning the core.
+> Current status: **0.1.0-alpha.2** — actively developed. The project is intentionally modular so new UX modules can be added without redesigning the core.
 
 ![OmaUX preview](assets/hero.svg)
 
@@ -39,6 +39,8 @@ cd omaux
 ```
 
 The full profile enables the optional integrations such as traffic lights, the companion pin-enabled Omarchy menu, window-layout helpers and other desktop-level changes. Backups are created before persistent user configuration is changed.
+
+The companion menu installer is ownership-safe: it refuses to replace an unknown plugin directory, backs up an existing OmaUX-managed/legacy clone under `~/.local/state/omaux/backups/menu/`, and only then performs the staged replacement.
 
 To remove the full profile:
 
