@@ -10,7 +10,7 @@ jobs:
       - name: Shell syntax
         run: bash -n install.sh uninstall.sh bin/omaux-dock-window bin/omaux-dock-pin bin/omaux-window-controls
       - name: Python syntax
-        run: python -m py_compile bin/omaux-window-layout modules/localization/generate-ukrainian-menu.py modules/menu/apply-pinned-menu-clone.py tests/test_pinned_hyprbars_source.py tests/test_multiwindow_restore.py tests/test_window_layout_state.py tests/test_preview_click_target.py
+        run: python -m py_compile bin/omaux-window-layout modules/localization/generate-ukrainian-menu.py modules/menu/apply-pinned-menu-clone.py tests/test_pinned_hyprbars_source.py tests/test_multiwindow_restore.py tests/test_window_layout_state.py tests/test_preview_click_target.py tests/test_spotify_widget_source.py
       - name: Menu clone safety
         run: python tests/test_menu_clone_safety.py
       - name: Pinned remote source safety
@@ -21,3 +21,5 @@ jobs:
         run: python tests/test_window_layout_state.py
       - name: Preview click hit-target safety
         run: python tests/test_preview_click_target.py
+      - name: Spotify widget source safety
+        run: python tests/test_spotify_widget_source.py
