@@ -22,7 +22,11 @@ jobs:
           echo 'fbc6fd876539212f6d3a99ae91b1e04107f621315254891b9ee3a27f174d556c  /tmp/omaux-alpha2.tar.gz' | sha256sum -c -
           mkdir -p "$release"
           tar -xzf "$archive" -C "$release"
-          rsync -a --delete --exclude .git "$release"/ ./
+          rsync -a --delete \
+            --exclude .git \
+            --exclude .github/workflows/import-alpha2.yml \
+            --exclude .github/workflows/validate.yml \
+            "$release"/ ./
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
