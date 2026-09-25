@@ -16,6 +16,12 @@ if [[ "$MODE" == "--full" ]]; then
 dofile("$ROOT/integrations/hyprbars.lua")
 -- OmaUX:hyprbars end
 EOT
+  grep -q 'OmaUX:windowing' "$HOME/.config/hypr/looknfeel.lua" || cat >> "$HOME/.config/hypr/looknfeel.lua" <<EOT
+
+-- OmaUX:windowing begin
+dofile("$ROOT/integrations/windowing.lua")
+-- OmaUX:windowing end
+EOT
   grep -q 'OmaUX:window-controls' "$HOME/.config/hypr/autostart.lua" || cat >> "$HOME/.config/hypr/autostart.lua" <<'EOT'
 
 -- OmaUX:window-controls begin
