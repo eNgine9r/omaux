@@ -154,6 +154,59 @@ activate_address() {
   fi
 }
 
+activate_match() {
+  local hinted="${1:-}" wanted="${2:-}" title="${3:-}" c key addr ws
+  local -a exact=() same=()
+
+  if [[ -n "$hinted" ]]; then
+    [[ "$hinted" == 0x* ]] || hinted="0x$hinted"
+    c=$(clients | jq -c --arg a "$hinted" 'first(.[] | select(.address == $a)) // empty')
+    if [[ -n "$c" ]]; then
+      key=$(client_key_json "$c")
+      if [[ -z "$wanted" || "$key" == "$wanted" ]]; then
+        activate_address "$hinted"
+        return
+      fi
+    fi
+  fi
+
+  while IFS= read -r c; do
+    key=$(client_key_json "$c")
+    [[ "$key" == "$wanted" ]] || continue
+    addr=$(jq -r '.address // empty' <<<"$c")
+    [[ -n "$addr" ]] || continue
+    same+=("$addr")
+    if [[ -n "$title" && "$(jq -r '.title // ""' <<<"$c")" == "$title" ]]; then
+      exact+=("$addr")
+    fi
+  done < <(clients | jq -c '.[]')
+
+  if (( ${#exact[@]} == 1 )); then
+    activate_address "${exact[0]}"
+    return
+  fi
+  if (( ${#same[@]} == 1 )); then
+    activate_address "${same[0]}"
+    return
+  fi
+
+  if (( ${#exact[@]} > 1 )); then
+    local candidate="" count=0
+    for addr in "${exact[@]}"; do
+      ws=$(clients | jq -r --arg a "$addr" 'first(.[] | select(.address == $a)) | .workspace.name // ""')
+      if [[ "$ws" == "special:minimized" ]]; then
+        candidate="$addr"
+        ((count+=1))
+      fi
+    done
+    if (( count == 1 )); then
+      activate_address "$candidate"
+      return
+    fi
+  fi
+  return 1
+}
+
 find_visible_for_key() {
   local wanted="$1" c key ws hist addr best="" best_hist=999999
   while IFS= read -r c; do
@@ -245,6 +298,10 @@ case "${1:-}" in
     prune
     activate_address "${2:?address required}"
     ;;
+  activate-match)
+    prune
+    activate_match "${2:-}" "${3:-}" "${4:-}"
+    ;;
   restore-app)
     prune
     addr=$(find_minimized_for_key "${2:?app key required}" || true)
@@ -264,7 +321,7 @@ case "${1:-}" in
     cat "$STATE"
     ;;
   *)
-    echo "Usage: omaux-dock-window {minimize-active|minimize-pointer|restore <address>|activate <address>|restore-app <key>|click <key> [desktop]|launch <desktop>|prune|state}" >&2
+    echo "Usage: omaux-dock-window {minimize-active|minimize-pointer|restore <address>|activate <address>|activate-match [address] <key> <title>|restore-app <key>|click <key> [desktop]|launch <desktop>|prune|state}" >&2
     exit 2
     ;;
 esac
