@@ -67,6 +67,18 @@ try:
     except RuntimeError as exc:
         assert 'symlink target' in str(exc)
     assert (real / 'sentinel').read_text() == 'SAFE'
+    assert menuclone.remove_managed_target() is False
+    assert menuclone.TARGET.is_symlink()
+    assert (real / 'sentinel').read_text() == 'SAFE'
+
+    menuclone.TARGET.unlink()
+    menuclone.TARGET.mkdir(parents=True)
+    (menuclone.TARGET / menuclone.OWNER_MARKER).write_text(json.dumps({
+        'manager': 'OmaUX', 'pluginId': menuclone.PLUGIN_ID
+    }))
+    (menuclone.TARGET / 'owned.txt').write_text('OWNED')
+    assert menuclone.remove_managed_target() is True
+    assert not menuclone.TARGET.exists()
 finally:
     shutil.rmtree(root)
 
