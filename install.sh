@@ -4,11 +4,20 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 MODE="${1:---core}"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omaux"
 BACKUP="$STATE/backups/$(date +%Y%m%d-%H%M%S)"
+BIN_MANAGER="$ROOT/modules/install/manage-binaries.py"
 mkdir -p "$STATE" "$BACKUP" "${XDG_CONFIG_HOME:-$HOME/.config}/omaux" "$HOME/.local/bin"
-for n in omaux-dock-window omaux-dock-pin omaux-window-layout; do install -Dm755 "$ROOT/bin/$n" "$HOME/.local/bin/$n"; done
+python "$BIN_MANAGER" install \
+  --source-root "$ROOT/bin" \
+  --target-root "$HOME/.local/bin" \
+  --backup-dir "$BACKUP/bin" \
+  omaux-dock-window omaux-dock-pin omaux-window-layout
 [[ -s "$HOME/.config/omaux/pins.json" ]] || printf '%s\n' '{"version":1,"pins":[]}' > "$HOME/.config/omaux/pins.json"
 if [[ "$MODE" == "--full" ]]; then
-  install -Dm755 "$ROOT/bin/omaux-window-controls" "$HOME/.local/bin/omaux-window-controls"
+  python "$BIN_MANAGER" install \
+    --source-root "$ROOT/bin" \
+    --target-root "$HOME/.local/bin" \
+    --backup-dir "$BACKUP/bin" \
+    omaux-window-controls
   for f in "$HOME/.config/hypr/looknfeel.lua" "$HOME/.config/hypr/autostart.lua"; do [[ -f "$f" ]] && cp -a "$f" "$BACKUP/$(basename "$f")"; done
   grep -q 'OmaUX:hyprbars' "$HOME/.config/hypr/looknfeel.lua" || cat >> "$HOME/.config/hypr/looknfeel.lua" <<EOT
 
