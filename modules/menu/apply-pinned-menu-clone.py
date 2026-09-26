@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -320,7 +321,22 @@ def install_stage(stage):
     return backup
 
 
+def remove_managed_target():
+    if not TARGET.exists() and not TARGET.is_symlink():
+        print(f'managed menu target already absent: {TARGET}')
+        return True
+    ownership = managed_target_kind(TARGET)
+    if ownership is None:
+        print(f'preserving unmanaged menu target: {TARGET}')
+        return False
+    shutil.rmtree(TARGET)
+    print(f'removed OmaUX-managed menu target: {TARGET}')
+    return True
+
+
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == '--remove-managed':
+        raise SystemExit(0 if remove_managed_target() else 3)
     if not SOURCE.is_dir():
         raise SystemExit('Omarchy menu source not found')
     key = source_key()

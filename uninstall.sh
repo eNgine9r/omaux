@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+BIN_MANAGER="$ROOT/modules/install/manage-binaries.py"
 python - "$HOME/.config/hypr/looknfeel.lua" "$HOME/.config/hypr/autostart.lua" <<'PY'
 from pathlib import Path
 import re,sys
@@ -10,8 +12,12 @@ for name,tag in [(sys.argv[1],'hyprbars'),(sys.argv[1],'windowing'),(sys.argv[2]
  s=re.sub(r'\n?-- OmaUX:'+re.escape(tag)+r' begin.*?-- OmaUX:'+re.escape(tag)+r' end\n?', '\n', s, flags=re.S)
  p.write_text(s)
 PY
-omarchy-plugin-disable io.github.engine9r.omaux-menu >/dev/null 2>&1 || true
-rm -rf "$HOME/.config/omarchy/plugins/io.github.engine9r.omaux-menu"
-rm -f "$HOME/.local/bin/omaux-dock-window" "$HOME/.local/bin/omaux-dock-pin" "$HOME/.local/bin/omaux-window-layout" "$HOME/.local/bin/omaux-window-controls"
+if python "$ROOT/modules/menu/apply-pinned-menu-clone.py" --remove-managed; then
+  omarchy-plugin-disable io.github.engine9r.omaux-menu >/dev/null 2>&1 || true
+fi
+python "$BIN_MANAGER" uninstall \
+  --source-root "$ROOT/bin" \
+  --target-root "$HOME/.local/bin" \
+  omaux-dock-window omaux-dock-pin omaux-window-layout omaux-window-controls
 hyprctl reload >/dev/null 2>&1 || true
-echo 'OmaUX integrations removed. User state and backups were preserved.'
+echo 'OmaUX integrations removed. User state, unknown targets and backups were preserved.'
