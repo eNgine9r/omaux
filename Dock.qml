@@ -44,6 +44,10 @@ Item {
 
   ListModel { id: dockModel }
 
+  SpotifyMiniWidget {
+    enabled: true
+  }
+
   function helperPath(name) {
     return Quickshell.env("HOME") + "/.local/bin/" + String(name || "")
   }

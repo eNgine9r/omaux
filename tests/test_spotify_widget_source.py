@@ -3,7 +3,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 widget = (root / "SpotifyMiniWidget.qml").read_text()
-entry = (root / "Root.qml").read_text()
+dock = (root / "Dock.qml").read_text()
 manifest = (root / "manifest.json").read_text()
 
 # Native MPRIS integration: no polling helper or optional playerctl dependency.
@@ -35,8 +35,9 @@ assert "onIconKindChanged: requestPaint()" in widget
 
 # Composition is isolated from Dock.qml for easy rollback. Only the panel entrypoint
 # owns the Spotify overlay so opening the menu cannot create a duplicate layer.
-assert "Dock {" in entry
-assert "SpotifyMiniWidget {" in entry
-assert '"panel":"Root.qml"' in manifest
+assert "SpotifyMiniWidget {" in dock
+assert "enabled: true" in dock
+assert not (root / "Root.qml").exists()
+assert '"panel":"Dock.qml"' in manifest
 assert '"menu":"Dock.qml"' in manifest
 print("spotify widget source tests: PASS")
