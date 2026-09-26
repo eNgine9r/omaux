@@ -33,9 +33,10 @@ assert "root.savePosition(panel, card)" in widget
 assert "property string iconKind: button.kind" in widget
 assert "onIconKindChanged: requestPaint()" in widget
 
-# Composition is isolated from Dock.qml for easy rollback.
+# Composition is isolated from Dock.qml for easy rollback. Only the panel entrypoint
+# owns the Spotify overlay so opening the menu cannot create a duplicate layer.
 assert "Dock {" in entry
 assert "SpotifyMiniWidget {" in entry
 assert '"panel":"Root.qml"' in manifest
-assert '"menu":"Root.qml"' in manifest
+assert '"menu":"Dock.qml"' in manifest
 print("spotify widget source tests: PASS")
